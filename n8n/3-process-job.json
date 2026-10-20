@@ -1,0 +1,563 @@
+{
+  "name": "Recipes · 3 Process job",
+  "id": "RcpProcess0000003",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recipes-job",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "331bdb30-b640-518b-ba1a-4f07a155b73e",
+      "name": "From Supabase",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpJobSecret00001",
+          "name": "Recipes job secret"
+        }
+      },
+      "webhookId": "815e32b2-1e7d-5330-b961-3f5527fdcb24"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "204d0fe7-9847-5960-beb1-2e05f417b11f",
+      "name": "Every 10 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3a61377d-db2f-5707-88b8-618aa0044e19",
+              "name": "supabase_url",
+              "value": "https://YOUR-PROJECT.supabase.co",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "191cfc22-0548-5d61-a38a-66f35d1ad89b",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('From Supabase').first().json.body || {};\nconst id = String(body.job_id || '');\nif (!/^[0-9a-f-]{36}$/i.test(id)) return [];\nreturn [{ json: { id } }];"
+      },
+      "id": "e0f32eb5-86da-53a1-bfec-8fa3c45df31a",
+      "name": "Which job",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/rpc/sweep_jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({}) }}",
+        "options": {}
+      },
+      "id": "1427f453-79dc-55db-910a-c7ef42850ca1",
+      "name": "Find stuck jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/rpc/claim_job",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_job_id: $json.id, p_from: [\"pending\"] }) }}",
+        "options": {}
+      },
+      "id": "200e1602-2bc5-5255-a438-f69920c9d5dc",
+      "name": "Claim job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3f43c821-3e0f-582d-b4c4-318649ed0521",
+              "leftValue": "={{ !!$json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "baa24a06-af17-524b-818c-4aef013b48d2",
+      "name": "Claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "RcpExtract0000001",
+          "mode": "list",
+          "cachedResultName": "Recipes · 1 Extract recipe"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $json.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "bcf7b3fb-8aa8-5e4e-9cc8-ca5166430713",
+      "name": "Read recipe",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "58fc2b35-5759-5bd5-a104-8a1964ef78d5",
+              "leftValue": "={{ !!$json.tg_chat_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "436472a2-4165-53f5-a837-d8b2afd47299",
+      "name": "From Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fd248b4f-e130-58d7-9f7a-06c6730cfe6e",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "8a57bc9f-3c24-5c30-aa42-948904703bc9",
+      "name": "Worked?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.tg_chat_id }}",
+        "text": "=✅ Added \"{{ String($json.title ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }}\" to the inbox.\n\nOpen the app → Inbox to check it and approve it.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "eefebd43-030c-5afc-891d-7399caafe956",
+      "name": "Tell success",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        220
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.tg_chat_id }}",
+        "text": "=❌ I couldn't read that recipe.\n{{ String($json.error ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }}\n\nYou can tap Retry, or send clearer screenshots.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        },
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🔁 Retry",
+                    "additionalFields": {
+                      "callback_data": "=go:{{ $json.job_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "3a501dfd-3b8c-5e79-ae6d-030bd2d1ae2b",
+      "name": "Tell failure",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        400
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { from_webhook: $('From Supabase').isExecuted } }];"
+      },
+      "id": "30c1822c-a29e-5f73-9cb8-494c80fc3ceb",
+      "name": "Which trigger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "633dbbbb-5a0b-5025-9c8e-d03eba269b9f",
+              "leftValue": "={{ $json.from_webhook }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "6ea437e9-6db5-5fcd-b9d2-eda2974ad057",
+      "name": "Called by Supabase?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "From Supabase": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 10 minutes": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Which trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which trigger": {
+      "main": [
+        [
+          {
+            "node": "Called by Supabase?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Called by Supabase?": {
+      "main": [
+        [
+          {
+            "node": "Which job",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find stuck jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which job": {
+      "main": [
+        [
+          {
+            "node": "Claim job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find stuck jobs": {
+      "main": [
+        [
+          {
+            "node": "Claim job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim job": {
+      "main": [
+        [
+          {
+            "node": "Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Read recipe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read recipe": {
+      "main": [
+        [
+          {
+            "node": "From Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Worked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Worked?": {
+      "main": [
+        [
+          {
+            "node": "Tell success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tell failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

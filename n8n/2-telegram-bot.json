@@ -1,0 +1,969 @@
+{
+  "name": "Recipes · 2 Telegram bot",
+  "id": "RcpTelegram000002",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "id": "282e4400-18ce-56f6-9ec7-adeb54cedde7",
+      "name": "Telegram",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        400
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      },
+      "webhookId": "33e4ffc8-d385-53c7-9c91-c277b0017df1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "16ed0409-d1b4-52b9-a7dc-041ac8d80c62",
+              "name": "supabase_url",
+              "value": "https://YOUR-PROJECT.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "8e0b3ee3-d055-5131-83d7-618685229393",
+              "name": "allowed_telegram_ids",
+              "value": "PUT-YOUR-TELEGRAM-ID,PUT-LAURAS-TELEGRAM-ID",
+              "type": "string"
+            },
+            {
+              "id": "5cdbc248-10d6-5a49-8db8-b319133ac608",
+              "name": "wait_seconds",
+              "value": 15,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "866b3b88-9c25-5629-8db4-557fdb840c95",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const u = $('Telegram').first().json;\nconst s = $('Settings').first().json;\nconst allowed = String(s.allowed_telegram_ids).split(',').map(x => x.trim()).filter(Boolean);\nconst from = u.callback_query?.from?.id ?? u.message?.from?.id;\nconst chat = u.callback_query?.message?.chat?.id ?? u.message?.chat?.id;\nconst out = { route: 4, chat_id: chat, user_id: from };\n// route: 0 button tap, 1 screenshot/text for the recipe, 2 help, 3 unsupported file, 4 ignore\nif (!from || !allowed.includes(String(from))) return [{ json: out }];\n\nif (u.callback_query) {\n  const [action, job_id] = String(u.callback_query.data || '').split(':');\n  return [{ json: { ...out, route: 0, cb_id: u.callback_query.id, action, job_id,\n                    button: action === 'x' ? 1 : 0 } }];\n}\nconst m = u.message;\nif (!m) return [{ json: out }];\nconst okTypes = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };\nlet file_id = null, mime = null;\nif (Array.isArray(m.photo) && m.photo.length) {\n  file_id = m.photo[m.photo.length - 1].file_id;   // largest size Telegram has\n  mime = 'image/jpeg';\n} else if (m.document) {\n  if (!okTypes[m.document.mime_type]) return [{ json: { ...out, route: 3 } }];\n  file_id = m.document.file_id; mime = m.document.mime_type;\n}\nconst text = (m.caption || m.text || '').trim();\nif (!file_id && /^\\/(start|help)/i.test(text)) return [{ json: { ...out, route: 2 } }];\nif (!file_id && !text) return [{ json: { ...out, route: 3 } }];\nconst path = file_id ? `telegram/${chat}/${m.message_id}-${u.update_id}.${okTypes[mime]}` : null;\nreturn [{ json: { ...out, route: 1, file_id, mime, path, text: text || null, has_file: !!file_id } }];"
+      },
+      "id": "50609caf-ee0e-50b9-a564-34ba876024c5",
+      "name": "Understand message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 5,
+        "output": "={{ $json.route }}"
+      },
+      "id": "3d60fc1d-b6f6-5278-8b24-b433f77566c4",
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        660,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "290cb0ec-03e3-5f8a-b5d6-90a0e16c55db",
+              "leftValue": "={{ $json.has_file }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "acd1b35a-95ca-582c-8f0a-aa23b178920b",
+      "name": "Is screenshot?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "get",
+        "fileId": "={{ $json.file_id }}",
+        "download": true,
+        "additionalFields": {}
+      },
+      "id": "464cc26b-09db-5aaa-8e36-072fa4782e53",
+      "name": "Download screenshot",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/storage/v1/object/recipe-images/{{ $('Understand message').first().json.path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "={{ $('Understand message').first().json.mime }}"
+            },
+            {
+              "name": "x-upsert",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "491006f6-ed62-529f-94ae-c2363f324cdf",
+      "name": "Upload screenshot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/rpc/tg_add_part",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $('Understand message').first().json.chat_id, p_user_id: $('Understand message').first().json.user_id, p_image: $('Understand message').first().json.path, p_text: $('Understand message').first().json.text }) }}",
+        "options": {}
+      },
+      "id": "0a16e3cc-1acc-5030-a6b1-0cbd046b453b",
+      "name": "Add screenshot to recipe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/rpc/tg_add_part",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_chat_id: $json.chat_id, p_user_id: $json.user_id, p_image: null, p_text: $json.text }) }}",
+        "options": {}
+      },
+      "id": "8b25ac4c-dbb0-51d5-8636-46db01aee13b",
+      "name": "Add text to recipe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": "={{ $('Settings').first().json.wait_seconds }}",
+        "unit": "seconds"
+      },
+      "id": "953dcd4f-bc92-51e7-bfe7-5c9f809bc1a7",
+      "name": "Wait for more",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        300
+      ],
+      "webhookId": "a5abe4c8-14d4-5f31-8bd5-a7e5bd9d1932"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/import_jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "=eq.{{ $json.job_id }}"
+            },
+            {
+              "name": "select",
+              "value": "id,status,images,texts"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "17b420b9-b9f9-568f-bedf-d9b42d0b3c20",
+      "name": "Check recipe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const before = $('Wait for more').first().json;\nconst now = $json;\nconst last = now.status === 'collecting'\n  && (now.images || []).length === before.image_count\n  && (now.texts || []).length === before.text_count;\nconst n = (now.images || []).length;\nconst t = (now.texts || []).length;\nconst parts = [];\nif (n) parts.push(`${n} screenshot${n === 1 ? '' : 's'}`);\nif (t) parts.push('some text');\nreturn [{ json: { last, job_id: now.id, summary: parts.join(' and ') } }];"
+      },
+      "id": "fe2674ee-8011-56b8-afea-b72b98028d96",
+      "name": "Was that the last one?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "629a9642-9ebb-5bf6-b078-426995ab209c",
+              "leftValue": "={{ $json.last }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "3f946953-9a66-5355-8769-aafccb16bda1",
+      "name": "Nothing new arrived?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Understand message').first().json.chat_id }}",
+        "text": "=Got {{ $json.summary }} for one recipe. 📸\n\nIf the recipe continues, send the rest now. When that's everything, tap Done.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        },
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✅ Done – add recipe",
+                    "additionalFields": {
+                      "callback_data": "=go:{{ $json.job_id }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "✖️ Start over",
+                    "additionalFields": {
+                      "callback_data": "=x:{{ $json.job_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "fd16eea3-af5c-5a41-aee3-693b5dd78db3",
+      "name": "Ask if that's everything",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.cb_id }}",
+        "additionalFields": {}
+      },
+      "id": "fe34e09b-47a6-5b65-a960-07a42ba195fc",
+      "name": "Answer button",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        620
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $('Understand message').first().json.button }}"
+      },
+      "id": "a030e4ad-bca6-55ec-9a22-a6751b93c654",
+      "name": "Which button?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1100,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/import_jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "=eq.{{ $('Understand message').first().json.job_id }}"
+            },
+            {
+              "name": "status",
+              "value": "in.(collecting,error)"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: \"pending\" }) }}",
+        "options": {}
+      },
+      "id": "9916c04e-0b34-5af3-8fd8-df2ca667b5a1",
+      "name": "Send for reading",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        560
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5377f913-af6b-5a9a-9a36-5b7126996033",
+              "leftValue": "={{ !!$json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "7e859028-2194-523b-bf0a-92b4a787b016",
+      "name": "Was it waiting?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Understand message').first().json.chat_id }}",
+        "text": "=On it! 👩‍🍳 Reading your recipe now. I'll message you when it's in the app's inbox (usually under a minute).",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "8d11e728-5365-5b55-9c6e-62e1e580463e",
+      "name": "Say on it",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        500
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Understand message').first().json.chat_id }}",
+        "text": "=That recipe has already been sent. ✔️ Send new screenshots to start another one.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "3b9ad1c4-0430-5fd1-b2da-d13aaef5496f",
+      "name": "Say already sent",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        640
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/import_jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "=eq.{{ $('Understand message').first().json.job_id }}"
+            },
+            {
+              "name": "status",
+              "value": "in.(collecting,error)"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: \"cancelled\" }) }}",
+        "options": {}
+      },
+      "id": "62bfead2-7e43-5fc7-a8ac-1ece779ca077",
+      "name": "Cancel recipe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        760
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Understand message').first().json.chat_id }}",
+        "text": "=Cleared. 🧹 Send screenshots whenever you're ready.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "3ca82a02-e1b6-5f73-b4f9-6e4b38c67587",
+      "name": "Say cleared",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        760
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "=Hi! Send me screenshots of a recipe (one recipe at a time). If it needs several screenshots, send them all, then tap Done. You can also paste the recipe text.\n\nIt will appear in the app's Inbox for you to check.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "524cc98b-6634-550a-9323-10fb44bfcc7b",
+      "name": "Help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        860
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "=I can only read screenshots sent as photos, or text. Try sending it again as a photo. 🙂",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "3f73e7e7-5cf9-5647-9ea4-d95286838e7b",
+      "name": "Unsupported",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Understand message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Understand message": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Answer button",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is screenshot?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Help",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unsupported",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is screenshot?": {
+      "main": [
+        [
+          {
+            "node": "Download screenshot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add text to recipe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download screenshot": {
+      "main": [
+        [
+          {
+            "node": "Upload screenshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload screenshot": {
+      "main": [
+        [
+          {
+            "node": "Add screenshot to recipe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add screenshot to recipe": {
+      "main": [
+        [
+          {
+            "node": "Wait for more",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add text to recipe": {
+      "main": [
+        [
+          {
+            "node": "Wait for more",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for more": {
+      "main": [
+        [
+          {
+            "node": "Check recipe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check recipe": {
+      "main": [
+        [
+          {
+            "node": "Was that the last one?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was that the last one?": {
+      "main": [
+        [
+          {
+            "node": "Nothing new arrived?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nothing new arrived?": {
+      "main": [
+        [
+          {
+            "node": "Ask if that's everything",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer button": {
+      "main": [
+        [
+          {
+            "node": "Which button?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which button?": {
+      "main": [
+        [
+          {
+            "node": "Send for reading",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel recipe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send for reading": {
+      "main": [
+        [
+          {
+            "node": "Was it waiting?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was it waiting?": {
+      "main": [
+        [
+          {
+            "node": "Say on it",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Say already sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel recipe": {
+      "main": [
+        [
+          {
+            "node": "Say cleared",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

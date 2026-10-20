@@ -1,0 +1,747 @@
+{
+  "name": "Recipes · 1 Extract recipe",
+  "id": "RcpExtract0000001",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "job_id",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "c84479a0-4116-5fe7-8afc-a0ac3984d66e",
+      "name": "When called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "319e67d6-22db-557d-9809-7c8bf0aa06a0",
+              "name": "supabase_url",
+              "value": "https://YOUR-PROJECT.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "e2eb6088-10dd-52ad-b2e8-6581de399011",
+              "name": "anthropic_url",
+              "value": "https://api.anthropic.com/v1/messages",
+              "type": "string"
+            },
+            {
+              "id": "a6eadbf5-5c23-55f6-b485-b1b495d0676f",
+              "name": "model",
+              "value": "claude-sonnet-5-5",
+              "type": "string"
+            },
+            {
+              "id": "1cd3833e-827b-5a52-9dea-cada25e3367a",
+              "name": "max_tokens",
+              "value": 8000,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b01d8ac3-fb97-5fb3-9881-6105cc21b92e",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/import_jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "=eq.{{ $('When called').first().json.job_id }}"
+            },
+            {
+              "name": "select",
+              "value": "id,source,status,images,texts,tg_chat_id"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "5e668660-5c79-54f1-bd41-ada1d464a3c5",
+      "name": "Get job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/tags",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "select",
+              "value": "kind,slug,label"
+            },
+            {
+              "name": "order",
+              "value": "kind,sort"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3ebdf637-cb84-5c74-b0cb-20a3738f05c2",
+      "name": "Get tags",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      },
+      "executeOnce": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/shop_categories",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "select",
+              "value": "category,label"
+            },
+            {
+              "name": "order",
+              "value": "sort"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1eb6416f-716a-5eb6-a282-565c5ca6ca19",
+      "name": "Get shop categories",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      },
+      "executeOnce": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $('Get job').first().json;\nconst tags = $('Get tags').all().map(i => i.json);\nconst cats = $('Get shop categories').all().map(i => i.json);\nconst byKind = k => tags.filter(t => t.kind === k);\nreturn [{ json: {\n  job_id: job.id, tg_chat_id: job.tg_chat_id ?? null,\n  images: job.images || [], texts: job.texts || [],\n  needs_signing: (job.images || []).length > 0,\n  sections: byKind('section'), nutrients: byKind('nutrient'), allergens: byKind('allergen'),\n  equipment: byKind('equipment'), reheat: byKind('reheat'), categories: cats,\n} }];"
+      },
+      "id": "5e79d279-2f6d-561c-982b-dbe827683bec",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3609e311-f5a9-5d8a-be4e-ccbb8d2fee34",
+              "leftValue": "={{ $json.needs_signing }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "b35009d0-a8a5-5943-a728-f190d80e4945",
+      "name": "Has screenshots?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/storage/v1/object/sign/recipe-images",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ expiresIn: 1800, paths: $json.images }) }}",
+        "options": {}
+      },
+      "id": "79c7e366-3268-5aa8-94b5-c6788be5bf12",
+      "name": "Sign screenshot links",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Prepare').first().json;\nconst s = $('Settings').first().json;\nconst base = s.supabase_url.replace(/\\/$/, '') + '/storage/v1';\n\n// Signed links, kept in the original screenshot order\nlet links = [];\nif (p.needs_signing) {\n  const signed = $('Sign screenshot links').all().map(i => i.json);\n  links = p.images.map(path => {\n    const hit = signed.find(x => x.path === path);\n    const u = hit && (hit.signedURL || hit.signedUrl);\n    if (!u) throw new Error('Could not create a link for screenshot ' + path);\n    return u.startsWith('http') ? u : base + u;\n  });\n}\n\nconst slugs = list => list.map(t => t.slug);\nconst legend = list => list.map(t => `${t.slug} = ${t.label}`).join('; ');\nconst nullable = t => ({ type: [t, 'null'] });\n\nconst schema = {\n  type: 'object',\n  properties: {\n    is_recipe: { type: 'boolean', description: 'false if the material does not contain a recipe' },\n    title: { type: 'string', description: 'Short, clear recipe name in English' },\n    description: { type: 'string', description: 'One short sentence that helps a parent decide' },\n    source_name: { type: 'string', description: 'Author or Instagram handle if visible (e.g. @handle), else empty' },\n    sections: { type: 'array', items: { type: 'string', enum: slugs(p.sections) } },\n    servings: { ...nullable('integer'), description: 'Number of portions the recipe as written makes' },\n    slow_cook: { type: 'boolean', description: 'true if cooked low and slow for 2+ hours (slow cooker, oven braise)' },\n    hands_on_min: { ...nullable('integer'), description: 'Active prep/cooking minutes' },\n    total_min: { ...nullable('integer'), description: 'Total minutes start to finish, including oven/simmer/rest time' },\n    effort: { type: ['string', 'null'], enum: ['weeknight', 'weekend', null] },\n    cost: { type: ['string', 'null'], enum: ['£', '££', '£££', null] },\n    fridge_days: { ...nullable('integer'), description: 'Days the cooked dish keeps in the fridge' },\n    freezer_months: { ...nullable('integer'), description: 'Months it keeps frozen; 0 = does not freeze well' },\n    reheat: { type: 'array', items: { type: 'string', enum: slugs(p.reheat) } },\n    equipment: { type: 'array', items: { type: 'string', enum: slugs(p.equipment) } },\n    lunchbox: { type: ['string', 'null'], enum: ['ambient', 'ice_pack', 'no', null] },\n    lunchbox_notes: { type: 'string' },\n    toddler_ok: { type: ['boolean', 'null'] },\n    toddler_notes: { type: 'string' },\n    hidden_veg: { type: 'integer', description: 'How many vegetables are blended/grated in so kids do not notice' },\n    nutrients: { type: 'array', items: { type: 'string', enum: slugs(p.nutrients) } },\n    allergens: { type: 'array', items: { type: 'string', enum: slugs(p.allergens) } },\n    ingredients: {\n      type: 'array',\n      items: {\n        type: 'object',\n        properties: {\n          group: { type: ['string', 'null'], description: 'Sub-heading such as \"Sauce\" or \"Topping\", else null' },\n          qty: { type: ['number', 'null'] },\n          unit: { type: ['string', 'null'] },\n          item: { type: 'string' },\n          display: { type: 'string' },\n          category: { type: 'string', enum: p.categories.map(c => c.category) },\n          optional: { type: 'boolean' },\n        },\n        required: ['qty', 'unit', 'item', 'display', 'category'],\n      },\n    },\n    steps: { type: 'array', items: { type: 'string' } },\n    tips: { type: 'string', description: 'Useful tips, swaps or serving ideas from the source; empty if none' },\n    warnings: { type: 'array', items: { type: 'string' }, description: 'Things the parent should double-check' },\n  },\n  required: ['is_recipe', 'title', 'sections', 'servings', 'total_min', 'ingredients', 'steps',\n             'allergens', 'nutrients', 'lunchbox', 'fridge_days', 'freezer_months', 'warnings'],\n};\n\nconst system = `You turn recipe screenshots (usually Instagram posts) into structured recipes for a family in Manchester, UK: two adults and two young children (about 4 and 1). They cook from scratch. Call the save_recipe tool exactly once.\n\nTRANSCRIBE FAITHFULLY\n- Only use ingredients, quantities and steps that appear in the material. Never invent them.\n- If text is cut off, blurry or missing (for example the method is on a screenshot that was not sent), say so in warnings.\n- Screenshots are in order; a recipe may continue across several. Ignore likes, comments and app buttons.\n- If there is more than one recipe, extract the main one and add a warning.\n- If there is no recipe at all, set is_recipe to false and fill the other fields minimally.\n\nUK CONVENTIONS\n- British English names (courgette, aubergine, coriander, spring onion, double cream, plain flour, bicarbonate of soda).\n- Metric. Convert cups/oz/°F in \"display\" and keep the original in brackets, e.g. \"200 g plain flour (1½ cups)\". Oven: \"200°C (180°C fan)\".\n\nINGREDIENTS\n- item: the generic shopping name, lowercase, singular, without preparation words, so the same thing merges across recipes (\"red onion\", \"chicken thigh\", \"chopped tomatoes\", \"plain flour\", \"egg\", \"garlic\").\n- qty + unit describe how much to buy for the recipe as written; unit is one of g, kg, ml, l, tsp, tbsp, pinch, clove, tin, pack, bunch, slice, or null for whole items (2 eggs → qty 2, unit null). Use null qty for \"to taste\".\n- display: the full line as a cook would read it (\"2 red onions, finely sliced\").\n- category for the shop it comes from: ${legend(p.categories.map(c => ({ slug: c.category, label: c.label })))}.\n\nSTEPS\n- Short imperative steps in order. Split long paragraphs into separate steps. Keep timings and temperatures.\n\nTAGS (estimates are fine, but be conservative and add a warning when a value is a pure guess)\n- sections (choose all that fit): ${legend(p.sections)}.\n  packed_lunch only if it is good cold or at room temperature and easy for a 4-year-old to eat from a lunchbox. batch_freeze if it makes 6+ portions and freezes well. quick if total time is 25 minutes or less. weekend if it is long or fiddly.\n- effort: weeknight if hands-on time is about 30 minutes or less and nothing is fiddly; otherwise weekend.\n- cost per portion with UK supermarket prices: £ under about £1.50, ££ about £1.50–£3, £££ above.\n- fridge_days, following UK food safety guidance: cooked rice 1; cooked meat, fish or egg dishes 2–3; plain bakes 3–5. freezer_months: usually 3 for cooked dishes; 0 for things that freeze badly (salads, fried crispy food, mayo or cream-based sauces, boiled eggs).\n- reheat: ${legend(p.reheat)}. equipment: ${legend(p.equipment)}.\n- lunchbox: \"ambient\" only if safe unrefrigerated for about 4 hours (bread, crackers, fruit, raw veg sticks, hard cheese, plain bakes without cream or custard). Anything with cooked meat, fish, egg, cooked rice, soft cheese, yoghurt or creamy sauces → \"ice_pack\". \"no\" if it must be hot, is messy, or is unsuitable for a school lunchbox. Many UK schools are nut-free: if it contains nuts, say so in lunchbox_notes.\n- toddler_ok: true if a portion suits a 1-year-old or can be taken out before adding salt, chilli, whole nuts or other unsuitable items. In toddler_notes give the adaptation and choking advice where relevant (cut grapes and cherry tomatoes lengthways, no whole nuts for under-5s, no added salt for babies).\n- nutrients (only when clearly a meaningful source per portion): ${legend(p.nutrients)}.\n- allergens, UK's 14 (judge from the ingredients; e.g. pasta/bread/flour → gluten, butter/cheese/milk → milk, pesto → tree_nuts and milk, soy sauce → soya and gluten, Worcestershire sauce → fish; do not guess beyond likely ingredients): ${legend(p.allergens)}.\n- hidden_veg: count only vegetables that are blended, grated or otherwise hidden.\n- warnings: anything a parent should check before trusting the recipe (missing quantities, estimated times, unreadable parts, food safety concerns).`;\n\nconst content = [];\nlinks.forEach((url, i) => {\n  content.push({ type: 'text', text: `Screenshot ${i + 1} of ${links.length}:` });\n  content.push({ type: 'image', source: { type: 'url', url } });\n});\nif (p.texts.length) {\n  content.push({ type: 'text', text: 'Text sent with the recipe (captions or pasted text):\\n\\n' + p.texts.join('\\n\\n---\\n\\n') });\n}\ncontent.push({ type: 'text', text: 'Extract this recipe and call save_recipe.' });\n\nreturn [{ json: { body: {\n  model: s.model,\n  max_tokens: s.max_tokens,\n  system,\n  tools: [{ name: 'save_recipe', description: 'Save the extracted recipe', input_schema: schema }],\n  tool_choice: { type: 'tool', name: 'save_recipe' },\n  messages: [{ role: 'user', content }],\n} } }];"
+      },
+      "id": "f2e5bdc9-0eb5-519f-98a2-ce589e23b439",
+      "name": "Build Claude request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        200
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.anthropic_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "4a0b0f1d-cf81-5e65-8d26-b4634540418c",
+      "name": "Ask Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpAnthropicKey01",
+          "name": "Anthropic API key"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $json;\nif (r.stop_reason === 'max_tokens') throw new Error('The recipe was too long to read in one go.');\nconst call = (r.content || []).find(c => c.type === 'tool_use' && c.name === 'save_recipe');\nif (!call) throw new Error('Claude did not return a recipe.');\nconst recipe = call.input || {};\nif (recipe.is_recipe === false) throw new Error(\"These screenshots don't look like a recipe.\");\nreturn [{ json: { recipe, model: r.model || $('Settings').first().json.model } }];"
+      },
+      "id": "cc53aac8-a129-5a5a-81c3-2af74e91b17c",
+      "name": "Read answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        200
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/rpc/complete_job",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_job_id: $('Prepare').first().json.job_id, p_recipe: $json.recipe, p_model: $json.model }) }}",
+        "options": {}
+      },
+      "id": "d7150769-42ee-53b1-a990-dbcdde838e64",
+      "name": "Save to inbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b43a2488-cc5d-5bc4-8d43-316ab431b22c",
+              "name": "ok",
+              "value": "={{ true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "01498b0f-e05f-561d-ae57-38f6018409a6",
+              "name": "job_id",
+              "value": "={{ $('When called').first().json.job_id }}",
+              "type": "string"
+            },
+            {
+              "id": "d2540d5e-a46a-5e83-afc6-1d9c17918555",
+              "name": "recipe_id",
+              "value": "={{ $json.recipe_id }}",
+              "type": "string"
+            },
+            {
+              "id": "1519aeb4-b5bf-5780-9ff1-2984f8b76be1",
+              "name": "title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "b2b8cf8e-1f71-5c5f-912b-c0c788b0e504",
+              "name": "tg_chat_id",
+              "value": "={{ $('Get job').first().json.tg_chat_id }}",
+              "type": "string"
+            },
+            {
+              "id": "343cf8db-99c9-5434-8488-426535a87b37",
+              "name": "error",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2c2c3155-86ab-56a1-95e2-c091bb23e3a5",
+      "name": "Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const e = $json.error ?? $json;\nlet msg = typeof e === 'string' ? e : (e.message || e.description || JSON.stringify(e));\nconst d = typeof e === 'object' && e ? (e.description || '') : '';\nif (d && !msg.includes(d)) msg += ' — ' + d;\nmsg = String(msg).replace(/\\s*\\[line \\d+(, for item \\d+)?\\]\\s*$/, '');\n// Friendlier wording for the usual API problems\nif (/overloaded|529|rate_limit|429/i.test(msg)) msg = 'Claude is busy right now. Tap Retry in a few minutes.';\nelse if (/credit balance/i.test(msg)) msg = 'The Anthropic account is out of credit. Top it up, then tap Retry.';\nelse if (/authentication_error|invalid x-api-key|401/i.test(msg)) msg = 'n8n could not log in to a service (check the API keys in n8n), then tap Retry.';\nelse if (/ECONNREFUSED|ETIMEDOUT|ENOTFOUND|timeout/i.test(msg)) msg = 'A connection timed out. Tap Retry.';\nlet tg_chat_id = null;\n// first(0): this node is wired to Get job's *error* output, so name the main output explicitly\ntry { tg_chat_id = $('Get job').first(0)?.json?.tg_chat_id ?? null; } catch (err) { /* job could not be loaded */ }\nreturn [{ json: { error: msg.slice(0, 500), tg_chat_id } }];"
+      },
+      "id": "a55e625c-96af-5d82-a088-b65e7a9a1906",
+      "name": "Error message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/rpc/fail_job",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_job_id: $('When called').first().json.job_id, p_error: $json.error }) }}",
+        "options": {}
+      },
+      "id": "de704df4-881b-5621-8a27-6e8aa068a159",
+      "name": "Mark job failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        520
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9be442d8-332a-5213-b0ac-1eabef110c4c",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "f18d7f9f-9c86-546b-8116-708d16bfa947",
+              "name": "job_id",
+              "value": "={{ $('When called').first().json.job_id }}",
+              "type": "string"
+            },
+            {
+              "id": "522ce2b6-cbc7-56a9-9391-546118dacc2f",
+              "name": "recipe_id",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "64555163-c086-5a4e-8505-70888da5d5d9",
+              "name": "title",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "d58eb793-6d07-5fc1-ad10-299589df0591",
+              "name": "tg_chat_id",
+              "value": "={{ $('Error message').first().json.tg_chat_id ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "7359faeb-d7fa-5b1e-8dcb-9ebcc5917251",
+              "name": "error",
+              "value": "={{ $('Error message').first().json.error }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "562a51f1-c5fa-54ea-86f5-08afddbbce68",
+      "name": "Failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2420,
+        520
+      ]
+    }
+  ],
+  "connections": {
+    "When called": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Get job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get job": {
+      "main": [
+        [
+          {
+            "node": "Get tags",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get tags": {
+      "main": [
+        [
+          {
+            "node": "Get shop categories",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get shop categories": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Has screenshots?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has screenshots?": {
+      "main": [
+        [
+          {
+            "node": "Sign screenshot links",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Claude request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign screenshot links": {
+      "main": [
+        [
+          {
+            "node": "Build Claude request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Claude request": {
+      "main": [
+        [
+          {
+            "node": "Ask Claude",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Claude": {
+      "main": [
+        [
+          {
+            "node": "Read answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read answer": {
+      "main": [
+        [
+          {
+            "node": "Save to inbox",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to inbox": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error message": {
+      "main": [
+        [
+          {
+            "node": "Mark job failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark job failed": {
+      "main": [
+        [
+          {
+            "node": "Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

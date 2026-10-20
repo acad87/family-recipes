@@ -1,0 +1,349 @@
+{
+  "name": "Recipes · 5 Drive import (one recipe)",
+  "id": "RcpDriveOne000005",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "ref",
+              "type": "string"
+            },
+            {
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "name": "files",
+              "type": "array"
+            }
+          ]
+        }
+      },
+      "id": "613cc22a-e6f6-50e8-8a7a-32a2a8b35c4a",
+      "name": "When called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c4e542f1-6d30-5d07-bc9e-735d200d6a5e",
+              "name": "supabase_url",
+              "value": "https://YOUR-PROJECT.supabase.co",
+              "type": "string"
+            },
+            {
+              "id": "89fff229-8d81-5b60-a678-4c6da8bf9a76",
+              "name": "drive_api",
+              "value": "https://www.googleapis.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7471cfc9-8ecd-5179-9ad0-32e7d80d4457",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const g = $('When called').first().json;\nconst ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };\nreturn (g.files || []).map((f, i) => ({ json: {\n  file_id: f.id, mime: f.mimeType,\n  path: `drive/${g.ref}/${String(i + 1).padStart(2, '0')}-${f.id}.${ext[f.mimeType] || 'jpg'}`,\n} }));"
+      },
+      "id": "d77850db-3f7e-597b-8c5b-19f01afd7a09",
+      "name": "One item per screenshot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.drive_api }}/drive/v3/files/{{ $json.file_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "alt",
+              "value": "media"
+            },
+            {
+              "name": "supportsAllDrives",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "a3c4724d-6d64-54ca-92d7-2a9efd981c5e",
+      "name": "Download from Drive",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "rcpGoogleDrive001",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/storage/v1/object/recipe-images/{{ $('One item per screenshot').item.json.path }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "={{ $('One item per screenshot').item.json.mime }}"
+            },
+            {
+              "name": "x-upsert",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "a66648fc-367d-5ace-8082-7243325696db",
+      "name": "Upload to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const g = $('When called').first().json;\nconst paths = $('One item per screenshot').all().map(i => i.json.path);\nif ($input.all().length !== paths.length) throw new Error('Not every screenshot uploaded');\nreturn [{ json: { source: 'drive', status: 'processing', images: paths, source_ref: g.ref, texts: [] } }];"
+      },
+      "id": "236659b3-8cc7-5814-8c2c-f5a78c12ecd6",
+      "name": "Collect paths",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Settings').first().json.supabase_url }}/rest/v1/import_jobs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "2df12f04-486c-567c-b0b2-d894d4c2c3c8",
+      "name": "Create import job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "rcpSupabaseKey001",
+          "name": "Supabase secret key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "RcpExtract0000001",
+          "mode": "list",
+          "cachedResultName": "Recipes · 1 Extract recipe"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $json.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "b7f22e3b-7e56-54a6-87c0-3b8c71cf40f5",
+      "name": "Read recipe",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "When called": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "One item per screenshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per screenshot": {
+      "main": [
+        [
+          {
+            "node": "Download from Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download from Drive": {
+      "main": [
+        [
+          {
+            "node": "Upload to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Collect paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect paths": {
+      "main": [
+        [
+          {
+            "node": "Create import job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create import job": {
+      "main": [
+        [
+          {
+            "node": "Read recipe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "active": false,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
