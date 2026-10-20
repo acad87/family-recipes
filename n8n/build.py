@@ -204,14 +204,16 @@ http(w, "Get tags", (660, 200), "GET", REST + "/tags", "supabase",
      query={"select": "kind,slug,label", "order": "kind,sort"}, executeOnce=True, **ERR)
 http(w, "Get shop categories", (880, 200), "GET", REST + "/shop_categories", "supabase",
      query={"select": "category,label", "order": "sort"}, executeOnce=True, **ERR)
-code(w, "Prepare", (1100, 200), r"""
+code(w, "Prepare", (1100, 200), **ERR, js=r"""
 const job = $('Get job').first().json;
 const tags = $('Get tags').all().map(i => i.json);
 const cats = $('Get shop categories').all().map(i => i.json);
 const byKind = k => tags.filter(t => t.kind === k);
 return [{ json: {
   job_id: job.id, tg_chat_id: job.tg_chat_id ?? null,
-  images: job.images || [], texts: job.texts || [],
+  // Claude rejects full-size screenshots when a request has more than 20 images
+  images: (job.images || []).slice(0, 20), texts: job.texts || [],
+  too_many: (job.images || []).length > 20,
   needs_signing: (job.images || []).length > 0,
   sections: byKind('section'), nutrients: byKind('nutrient'), allergens: byKind('allergen'),
   equipment: byKind('equipment'), reheat: byKind('reheat'), categories: cats,
@@ -319,12 +321,12 @@ TAGS (estimates are fine, but be conservative and add a warning when a value is 
   packed_lunch only if it is good cold or at room temperature and easy for a 4-year-old to eat from a lunchbox. batch_freeze if it makes 6+ portions and freezes well. quick if total time is 25 minutes or less. weekend if it is long or fiddly.
 - effort: weeknight if hands-on time is about 30 minutes or less and nothing is fiddly; otherwise weekend.
 - cost per portion with UK supermarket prices: £ under about £1.50, ££ about £1.50–£3, £££ above.
-- fridge_days, following UK food safety guidance: cooked rice 1; cooked meat, fish or egg dishes 2–3; plain bakes 3–5. freezer_months: usually 3 for cooked dishes; 0 for things that freeze badly (salads, fried crispy food, mayo or cream-based sauces, boiled eggs).
+- fridge_days, following UK Food Standards Agency advice on leftovers: cooked rice dishes 1; other cooked dishes (meat, fish, egg, veg, pasta) 2; plain bakes without cream or custard 3–5. freezer_months: usually 3 for cooked dishes; 0 for things that freeze badly (salads, fried crispy food, mayo or cream-based sauces, boiled eggs). Where relevant, put in tips: cool and chill within 1–2 hours, reheat only once until steaming hot, eat defrosted food within 24 hours.
 - reheat: ${legend(p.reheat)}. equipment: ${legend(p.equipment)}.
-- lunchbox: "ambient" only if safe unrefrigerated for about 4 hours (bread, crackers, fruit, raw veg sticks, hard cheese, plain bakes without cream or custard). Anything with cooked meat, fish, egg, cooked rice, soft cheese, yoghurt or creamy sauces → "ice_pack". "no" if it must be hot, is messy, or is unsuitable for a school lunchbox. Many UK schools are nut-free: if it contains nuts, say so in lunchbox_notes.
+- lunchbox: "ambient" only for foods safe unrefrigerated for about 4 hours (plain bread or crackers, whole or cut fruit, raw veg sticks, plain bakes without cream, custard, cheese or meat). Anything containing cheese, hummus, yoghurt, cooked meat, fish, egg, cooked rice or pasta, or creamy sauces → "ice_pack". "no" if it must be hot, is messy, or is unsuitable for a school lunchbox. For rice dishes add to lunchbox_notes: cool quickly, keep chilled, eat within 24 hours. Many UK schools are nut-free: if it contains nuts, say so in lunchbox_notes.
 - toddler_ok: true if a portion suits a 1-year-old or can be taken out before adding salt, chilli, whole nuts or other unsuitable items. In toddler_notes give the adaptation and choking advice where relevant (cut grapes and cherry tomatoes lengthways, no whole nuts for under-5s, no added salt for babies).
 - nutrients (only when clearly a meaningful source per portion): ${legend(p.nutrients)}.
-- allergens, UK's 14 (judge from the ingredients; e.g. pasta/bread/flour → gluten, butter/cheese/milk → milk, pesto → tree_nuts and milk, soy sauce → soya and gluten, Worcestershire sauce → fish; do not guess beyond likely ingredients): ${legend(p.allergens)}.
+- allergens, UK's 14 (always add the warning "Allergens are estimated — check product labels" if any packaged ingredient is used; judge from the ingredients; e.g. pasta/bread/flour → gluten, butter/cheese/milk → milk, pesto → tree_nuts and milk, soy sauce → soya and gluten, Worcestershire sauce → fish; do not guess beyond likely ingredients): ${legend(p.allergens)}.
 - hidden_veg: count only vegetables that are blended, grated or otherwise hidden.
 - warnings: anything a parent should check before trusting the recipe (missing quantities, estimated times, unreadable parts, food safety concerns).`;
 
@@ -336,6 +338,7 @@ links.forEach((url, i) => {
 if (p.texts.length) {
   content.push({ type: 'text', text: 'Text sent with the recipe (captions or pasted text):\n\n' + p.texts.join('\n\n---\n\n') });
 }
+if (p.too_many) content.push({ type: 'text', text: 'Note: only the first 20 screenshots were sent. Add a warning that the rest were not read.' });
 content.push({ type: 'text', text: 'Extract this recipe and call save_recipe.' });
 
 return [{ json: { body: {
@@ -350,8 +353,8 @@ return [{ json: { body: {
 code(w, "Build Claude request", (1760, 200), BUILD_JS, **ERR)
 http(w, "Ask Claude", (1980, 200), "POST", "={{ $('Settings').first().json.anthropic_url }}", "anthropic",
      headers={"anthropic-version": "2023-06-01"},
-     body="={{ JSON.stringify($json.body) }}", timeout=300000,
-     retryOnFail=True, maxTries=3, waitBetweenTries=5000, **ERR)
+     body="={{ JSON.stringify($json.body) }}", timeout=240000,
+     retryOnFail=True, maxTries=2, waitBetweenTries=20000, **ERR)
 code(w, "Read answer", (2200, 200), r"""
 const r = $json;
 if (r.stop_reason === 'max_tokens') throw new Error('The recipe was too long to read in one go.');
@@ -359,6 +362,13 @@ const call = (r.content || []).find(c => c.type === 'tool_use' && c.name === 'sa
 if (!call) throw new Error('Claude did not return a recipe.');
 const recipe = call.input || {};
 if (recipe.is_recipe === false) throw new Error("These screenshots don't look like a recipe.");
+// Occasionally arrays come back as JSON text; turn them back into arrays
+for (const k of ['sections', 'reheat', 'equipment', 'nutrients', 'allergens', 'ingredients', 'steps', 'warnings']) {
+  if (typeof recipe[k] === 'string') { try { recipe[k] = JSON.parse(recipe[k]); } catch (e) { recipe[k] = []; } }
+  if (!Array.isArray(recipe[k])) recipe[k] = [];
+}
+if (!recipe.ingredients.length) throw new Error('No ingredients could be read. The ingredient list may be on a screenshot that was not sent.');
+if (!recipe.steps.length) recipe.warnings.push('No method steps could be read — check the original post.');
 return [{ json: { recipe, model: r.model || $('Settings').first().json.model } }];
 """, **ERR)
 http(w, "Save to inbox", (2420, 200), "POST", REST + "/rpc/complete_job", "supabase",
@@ -407,7 +417,7 @@ w.link("Has screenshots?", "Sign screenshot links", 0)
 w.link("Has screenshots?", "Build Claude request", 1)
 w.link("Sign screenshot links", "Build Claude request")
 w.chain("Build Claude request", "Ask Claude", "Read answer", "Save to inbox", "Result")
-for n in ["Get job", "Get tags", "Get shop categories", "Sign screenshot links", "Build Claude request",
+for n in ["Get job", "Get tags", "Get shop categories", "Prepare", "Sign screenshot links", "Build Claude request",
           "Ask Claude", "Read answer", "Save to inbox"]:
     w.link(n, "Error message", 1)
 w.chain("Error message", "Mark job failed", "Failed")
@@ -441,7 +451,8 @@ if (!m) return [{ json: out }];
 const okTypes = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 let file_id = null, mime = null;
 if (Array.isArray(m.photo) && m.photo.length) {
-  file_id = m.photo[m.photo.length - 1].file_id;   // largest size Telegram has
+  const best = m.photo.reduce((a, b) => ((b.width || 0) * (b.height || 0) > (a.width || 0) * (a.height || 0) ? b : a));
+  file_id = best.file_id;                          // largest size Telegram has
   mime = 'image/jpeg';
 } else if (m.document) {
   if (!okTypes[m.document.mime_type]) return [{ json: { ...out, route: 3 } }];
@@ -459,11 +470,11 @@ switch_n(w, "Route", (660, 400), 5, "={{ $json.route }}")
 if_true(w, "Is screenshot?", (880, 300), "={{ $json.has_file }}")
 w.add("Download screenshot", "n8n-nodes-base.telegram", 1.2,
       {"resource": "file", "operation": "get", "fileId": "={{ $json.file_id }}", "download": True,
-       "additionalFields": {}}, (1100, 200), CRED["telegram"])
+       "additionalFields": {}}, (1100, 200), CRED["telegram"], **ERR)
 http(w, "Upload screenshot", (1320, 200), "POST",
      "=" + SB + "/storage/v1/object/recipe-images/{{ $('Understand message').first().json.path }}", "supabase",
      headers={"Content-Type": "={{ $('Understand message').first().json.mime }}", "x-upsert": "true"},
-     binary_field="data")
+     binary_field="data", **ERR)
 http(w, "Add screenshot to recipe", (1540, 200), "POST", REST + "/rpc/tg_add_part", "supabase",
      body="={{ JSON.stringify({ p_chat_id: $('Understand message').first().json.chat_id, p_user_id: $('Understand message').first().json.user_id, p_image: $('Understand message').first().json.path, p_text: $('Understand message').first().json.text }) }}")
 http(w, "Add text to recipe", (1320, 400), "POST", REST + "/rpc/tg_add_part", "supabase",
@@ -497,14 +508,15 @@ w.add("Answer button", "n8n-nodes-base.telegram", 1.2,
       (880, 620), CRED["telegram"], onError="continueRegularOutput")
 switch_n(w, "Which button?", (1100, 620), 2, "={{ $('Understand message').first().json.button }}")
 http(w, "Send for reading", (1320, 560), "PATCH", REST + "/import_jobs", "supabase",
-     query={"id": "=eq.{{ $('Understand message').first().json.job_id }}", "status": "in.(collecting,error)"},
+     query={"id": "=eq.{{ $('Understand message').first().json.job_id }}", "status": "in.(collecting,error)",
+            "attempts": "lt.3"},
      headers={"Prefer": "return=representation"}, body='={{ JSON.stringify({ status: "pending" }) }}',
      alwaysOutputData=True)
 if_true(w, "Was it waiting?", (1540, 560), "={{ !!$json.id }}")
 tg_send(w, "Say on it", (1760, 500), "={{ $('Understand message').first().json.chat_id }}",
         "=On it! 👩‍🍳 Reading your recipe now. I'll message you when it's in the app's inbox (usually under a minute).")
 tg_send(w, "Say already sent", (1760, 640), "={{ $('Understand message').first().json.chat_id }}",
-        "=That recipe has already been sent. ✔️ Send new screenshots to start another one.")
+        "=That recipe was already sent, or it has failed 3 times. ✔️ Send new screenshots to start again.")
 http(w, "Cancel recipe", (1320, 760), "PATCH", REST + "/import_jobs", "supabase",
      query={"id": "=eq.{{ $('Understand message').first().json.job_id }}", "status": "in.(collecting,error)"},
      headers={"Prefer": "return=representation"}, body='={{ JSON.stringify({ status: "cancelled" }) }}',
@@ -515,6 +527,8 @@ tg_send(w, "Say cleared", (1540, 760), "={{ $('Understand message').first().json
 # --- help / unsupported
 tg_send(w, "Help", (880, 860), "={{ $json.chat_id }}",
         "=Hi! Send me screenshots of a recipe (one recipe at a time). If it needs several screenshots, send them all, then tap Done. You can also paste the recipe text.\n\nIt will appear in the app's Inbox for you to check.")
+tg_send(w, "Screenshot failed", (1540, 80), "={{ $('Understand message').first().json.chat_id }}",
+        "=Sorry, I couldn't save that screenshot. Please send it again. 🙏")
 tg_send(w, "Unsupported", (880, 1000), "={{ $json.chat_id }}",
         "=I can only read screenshots sent as photos, or text. Try sending it again as a photo. 🙂")
 
@@ -526,6 +540,8 @@ w.link("Route", "Unsupported", 3)
 w.link("Is screenshot?", "Download screenshot", 0)
 w.link("Is screenshot?", "Add text to recipe", 1)
 w.chain("Download screenshot", "Upload screenshot", "Add screenshot to recipe", "Wait for more")
+w.link("Download screenshot", "Screenshot failed", 1)
+w.link("Upload screenshot", "Screenshot failed", 1)
 w.link("Add text to recipe", "Wait for more")
 w.chain("Wait for more", "Check recipe", "Was that the last one?", "Nothing new arrived?")
 w.link("Nothing new arrived?", "Ask if that's everything", 0)
@@ -561,7 +577,17 @@ http(w, "Claim job", (660, 300), "POST", REST + "/rpc/claim_job", "supabase",
      body='={{ JSON.stringify({ p_job_id: $json.id, p_from: ["pending"] }) }}')
 if_true(w, "Claimed?", (880, 300), "={{ !!$json.id }}")
 exec_wf(w, "Read recipe", (1100, 300), WF_EXTRACT, EXTRACT_NAME,
-        {"job_id": "={{ $json.id }}"}, {"job_id": "string"})
+        {"job_id": "={{ $json.id }}"}, {"job_id": "string"}, **ERR)
+code(w, "Crash details", (1540, 520), r"""
+const job = $('Claim job').first(0).json;
+return [{ json: { ok: false, job_id: job.id, tg_chat_id: job.tg_chat_id ?? '', title: '',
+                  error: 'Something went wrong while reading it. Tap Retry.' } }];
+""")
+http(w, "Mark crashed job failed", (1760, 520), "POST", REST + "/rpc/fail_job", "supabase",
+     body="={{ JSON.stringify({ p_job_id: $json.job_id, p_error: $json.error }) }}", onError="continueRegularOutput")
+code(w, "Pass on", (1980, 520), r"""
+return [{ json: $('Crash details').first().json }];
+""")
 if_true(w, "From Telegram?", (1320, 300), "={{ !!$json.tg_chat_id }}")
 if_true(w, "Worked?", (1540, 300), "={{ $json.ok }}")
 tg_send(w, "Tell success", (1760, 220), "={{ $json.tg_chat_id }}",
@@ -585,6 +611,8 @@ w.link("Find stuck jobs", "Claim job")
 w.chain("Claim job", "Claimed?")
 w.link("Claimed?", "Read recipe", 0)
 w.link("Read recipe", "From Telegram?")
+w.link("Read recipe", "Crash details", 1)
+w.chain("Crash details", "Mark crashed job failed", "Pass on", "From Telegram?")
 w.link("From Telegram?", "Worked?", 0)
 w.link("Worked?", "Tell success", 0)
 w.link("Worked?", "Tell failure", 1)

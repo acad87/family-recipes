@@ -22,7 +22,7 @@
           ]
         }
       },
-      "id": "613cc22a-e6f6-50e8-8a7a-32a2a8b35c4a",
+      "id": "d77850db-3f7e-597b-8c5b-19f01afd7a09",
       "name": "When called",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -36,13 +36,13 @@
         "assignments": {
           "assignments": [
             {
-              "id": "c4e542f1-6d30-5d07-bc9e-735d200d6a5e",
+              "id": "a3c4724d-6d64-54ca-92d7-2a9efd981c5e",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT.supabase.co",
               "type": "string"
             },
             {
-              "id": "89fff229-8d81-5b60-a678-4c6da8bf9a76",
+              "id": "a66648fc-367d-5ace-8082-7243325696db",
               "name": "drive_api",
               "value": "https://www.googleapis.com",
               "type": "string"
@@ -51,7 +51,7 @@
         },
         "options": {}
       },
-      "id": "7471cfc9-8ecd-5179-9ad0-32e7d80d4457",
+      "id": "236659b3-8cc7-5814-8c2c-f5a78c12ecd6",
       "name": "Settings",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -64,7 +64,7 @@
       "parameters": {
         "jsCode": "const g = $('When called').first().json;\nconst ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };\nreturn (g.files || []).map((f, i) => ({ json: {\n  file_id: f.id, mime: f.mimeType,\n  path: `drive/${g.ref}/${String(i + 1).padStart(2, '0')}-${f.id}.${ext[f.mimeType] || 'jpg'}`,\n} }));"
       },
-      "id": "d77850db-3f7e-597b-8c5b-19f01afd7a09",
+      "id": "2df12f04-486c-567c-b0b2-d894d4c2c3c8",
       "name": "One item per screenshot",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -100,7 +100,7 @@
           }
         }
       },
-      "id": "a3c4724d-6d64-54ca-92d7-2a9efd981c5e",
+      "id": "b7f22e3b-7e56-54a6-87c0-3b8c71cf40f5",
       "name": "Download from Drive",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -139,7 +139,7 @@
         "inputDataFieldName": "data",
         "options": {}
       },
-      "id": "a66648fc-367d-5ace-8082-7243325696db",
+      "id": "e64b52e3-b307-5848-a0fb-f9e16d1ded3a",
       "name": "Upload to Supabase",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -158,7 +158,7 @@
       "parameters": {
         "jsCode": "const g = $('When called').first().json;\nconst paths = $('One item per screenshot').all().map(i => i.json.path);\nif ($input.all().length !== paths.length) throw new Error('Not every screenshot uploaded');\nreturn [{ json: { source: 'drive', status: 'processing', images: paths, source_ref: g.ref, texts: [] } }];"
       },
-      "id": "236659b3-8cc7-5814-8c2c-f5a78c12ecd6",
+      "id": "ca457d99-4276-504a-a39f-374b8ee830de",
       "name": "Collect paths",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -198,7 +198,7 @@
           }
         }
       },
-      "id": "2df12f04-486c-567c-b0b2-d894d4c2c3c8",
+      "id": "750d3a72-d175-5f17-a857-f7842965d97c",
       "name": "Create import job",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -246,7 +246,7 @@
           "waitForSubWorkflow": true
         }
       },
-      "id": "b7f22e3b-7e56-54a6-87c0-3b8c71cf40f5",
+      "id": "cbaf3147-b346-5349-9863-703821408aa3",
       "name": "Read recipe",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,

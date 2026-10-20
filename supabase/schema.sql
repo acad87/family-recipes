@@ -318,10 +318,9 @@ create table if not exists public.plan_entries (
   note             text,
   done             boolean not null default false,
   created_by       uuid default auth.uid() references auth.users(id) on delete set null,
-  updated_at       timestamptz not null default now(),
-  unique (day, slot, position)
+  updated_at       timestamptz not null default now()
 );
-create index if not exists plan_day_idx on public.plan_entries (day);
+create index if not exists plan_day_idx on public.plan_entries (day, slot, position);
 drop trigger if exists plan_touch on public.plan_entries;
 create trigger plan_touch before update on public.plan_entries
   for each row execute function public.touch_updated_at();
@@ -422,6 +421,11 @@ language plpgsql security definer
 set search_path = ''
 as $$
 begin
+  -- A recipe left unfinished for 30+ minutes is abandoned, so new screenshots start a fresh one
+  update public.import_jobs
+     set status = 'cancelled', error = 'Abandoned (no Done tap within 30 minutes)'
+   where tg_chat_id = p_chat_id and status = 'collecting' and last_part_at < now() - interval '30 minutes';
+
   return query
   insert into public.import_jobs as j (source, status, tg_chat_id, tg_user_id, images, texts)
   values ('telegram', 'collecting', p_chat_id, p_user_id,
@@ -429,7 +433,10 @@ begin
           case when nullif(btrim(p_text), '') is null then '{}' else array[p_text] end)
   on conflict (tg_chat_id) where status = 'collecting'
   do update set
-    images       = j.images || case when p_image is null then '{}'::text[] else array[p_image] end,
+    -- photos of one album can finish uploading out of order: keep them sorted by the
+    -- Telegram message id at the start of the file name (telegram/<chat>/<message_id>-…)
+    images       = (select array_agg(x order by coalesce((regexp_match(x, '/(\d+)-[^/]*$'))[1]::bigint, 0), x)
+                      from unnest(j.images || case when p_image is null then '{}'::text[] else array[p_image] end) as x),
     texts        = j.texts  || case when nullif(btrim(p_text), '') is null then '{}'::text[] else array[p_text] end,
     last_part_at = now()
   returning j.id, cardinality(j.images), cardinality(j.texts);
@@ -446,8 +453,25 @@ as $$
   update public.import_jobs
      set status = 'processing', attempts = attempts + 1, error = null
    where id = p_job_id and status = any(p_from)
+     and attempts < 3                                   -- never pay for the same recipe more than 3 times
      and (cardinality(images) > 0 or cardinality(texts) > 0)
   returning *;
+$$;
+
+-- Read a JSON value as text[] whether it is an array, a JSON-encoded array string, or missing.
+create or replace function public.jarr(v jsonb)
+returns text[]
+language plpgsql immutable
+set search_path = ''
+as $$
+begin
+  if v is null or jsonb_typeof(v) = 'null' then return '{}'; end if;
+  if jsonb_typeof(v) = 'string' then
+    begin v := (v #>> '{}')::jsonb; exception when others then return array[v #>> '{}']; end;
+  end if;
+  if jsonb_typeof(v) <> 'array' then return '{}'; end if;
+  return array(select jsonb_array_elements_text(v));
+end;
 $$;
 
 -- Save the AI result as an inbox recipe and close the job. Unknown tag
@@ -486,7 +510,7 @@ begin
     nullif(btrim(r->>'description'), ''),
     nullif(btrim(r->>'source_name'), ''),
     nullif(btrim(r->>'source_url'), ''),
-    public.clean_tags('section',   array(select jsonb_array_elements_text(coalesce(r->'sections','[]')))),
+    public.clean_tags('section', public.jarr(r->'sections')),
     case when (r->>'servings') ~ '^\d+$' and (r->>'servings')::int between 1 and 60 then (r->>'servings')::int end,
     coalesce(r->>'slow_cook' = 'true', false),
     case when (r->>'hands_on_min') ~ '^\d+$' then (r->>'hands_on_min')::int end,
@@ -495,20 +519,20 @@ begin
     case when r->>'cost' in ('£','££','£££') then r->>'cost' end,
     case when (r->>'fridge_days') ~ '^\d+$' and (r->>'fridge_days')::int <= 14 then (r->>'fridge_days')::int end,
     case when (r->>'freezer_months') ~ '^\d+$' and (r->>'freezer_months')::int <= 12 then (r->>'freezer_months')::int end,
-    public.clean_tags('reheat',    array(select jsonb_array_elements_text(coalesce(r->'reheat','[]')))),
-    public.clean_tags('equipment', array(select jsonb_array_elements_text(coalesce(r->'equipment','[]')))),
+    public.clean_tags('reheat', public.jarr(r->'reheat')),
+    public.clean_tags('equipment', public.jarr(r->'equipment')),
     case when r->>'lunchbox' in ('ambient','ice_pack','no') then r->>'lunchbox' end,
     nullif(btrim(r->>'lunchbox_notes'), ''),
     case when r->>'toddler_ok' in ('true','false') then (r->>'toddler_ok')::boolean end,
     nullif(btrim(r->>'toddler_notes'), ''),
     case when (r->>'hidden_veg') ~ '^\d+$' then least((r->>'hidden_veg')::int, 20) else 0 end,
-    public.clean_tags('nutrient',  array(select jsonb_array_elements_text(coalesce(r->'nutrients','[]')))),
-    public.clean_tags('allergen',  array(select jsonb_array_elements_text(coalesce(r->'allergens','[]')))),
+    public.clean_tags('nutrient', public.jarr(r->'nutrients')),
+    public.clean_tags('allergen', public.jarr(r->'allergens')),
     case when jsonb_typeof(r->'ingredients') = 'array' then r->'ingredients' else '[]'::jsonb end,
     case when jsonb_typeof(r->'steps') = 'array' then r->'steps' else '[]'::jsonb end,
     nullif(btrim(r->>'tips'), ''),
     j.images,
-    array(select jsonb_array_elements_text(case when jsonb_typeof(r->'warnings') = 'array' then r->'warnings' else '[]'::jsonb end)),
+    public.jarr(r->'warnings'),
     p_model,
     j.id,
     j.created_by
@@ -539,6 +563,9 @@ begin
   update public.import_jobs j
      set status = 'error', error = 'This took too long. Tap Retry to try again.'
    where j.status = 'processing' and j.updated_at < now() - interval '20 minutes';
+  update public.import_jobs j
+     set status = 'error', error = case when j.attempts >= 3 then 'Tried 3 times without success.' else 'Nothing to read.' end
+   where j.status = 'pending' and (j.attempts >= 3 or (cardinality(j.images) = 0 and cardinality(j.texts) = 0));
   return query
     select j.id from public.import_jobs j
      where j.status = 'pending' and j.updated_at < now() - interval '2 minutes'
@@ -599,6 +626,11 @@ create policy members_read on public.members for select to authenticated
   using ((select public.is_member()));
 revoke insert, update, delete on public.members from authenticated;
 
+-- n8n uses the secret key (service_role). Don't rely on project defaults for its grants.
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+
 revoke all on public.recipe_stats from anon;
 grant select on public.recipe_stats to authenticated;
 
@@ -607,7 +639,7 @@ grant select on public.recipe_stats to authenticated;
 -- ---------------------------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('recipe-images', 'recipe-images', false, 15728640,
-        array['image/jpeg','image/png','image/heic','image/heif','image/webp'])
+        array['image/jpeg','image/png','image/webp','image/gif'])
 on conflict (id) do nothing;
 
 drop policy if exists recipe_images_member_select on storage.objects;

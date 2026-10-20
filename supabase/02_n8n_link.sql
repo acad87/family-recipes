@@ -55,6 +55,8 @@ begin
 end;
 $$;
 
+revoke all on function public.notify_job_pending() from public, anon, authenticated;
+
 drop trigger if exists import_jobs_notify on public.import_jobs;
 create trigger import_jobs_notify
   after insert or update of status on public.import_jobs

@@ -111,7 +111,7 @@ Then in each workflow:
 ## 6. Test the Telegram bot (5 minutes)
 
 1. Send `/start` to your bot. You should get the help message.
-2. Send **2 screenshots** of one recipe. After about 15 seconds the bot asks "Got 2 screenshots… tap Done".
+2. Send **2 screenshots** of one recipe. This is also the real test of Supabase Storage. If it fails, see "If nothing happens" below. After about 15 seconds the bot asks "Got 2 screenshots… tap Done".
 3. Tap **✅ Done**. Within about a minute you should get "✅ Added "…" to the inbox".
 4. In Supabase → **Table Editor → recipes**, the recipe should be there with status `inbox`.
 
@@ -119,6 +119,7 @@ If nothing happens:
 
 - n8n → **Executions** shows which node failed.
 - No reply at all: check `allowed_telegram_ids`, and check that n8n's public URL is HTTPS (Telegram requires it).
+- **"Upload screenshot" fails with 401/403 or "Invalid JWT"**: this is the one thing I couldn't test without your real project. It's whether Supabase Storage accepts the new `sb_secret_` key on the `apikey` header alone. Send me the error text and I'll switch the credential setup.
 - "On it!" but no result: check step 5. In Supabase run `select * from net._http_response order by created desc limit 5;` to see whether the call to n8n failed. A safety sweep also retries every 10 minutes.
 
 **Tip for Laura:** if a screenshot has very small text and the recipe comes out wrong, send it as a **File** instead of a Photo (paperclip → File). Telegram shrinks photos; files keep full resolution.
@@ -146,6 +147,8 @@ If nothing happens:
 3. Check those 5 recipes in Supabase (or in the app's Inbox once Phase 2 is ready). If they look right, set `max_recipes` to **25** and run it again. Repeat until the summary shows 0 imported.
 
 Running it again never imports the same file or subfolder twice. If "Only new ones" outputs 0 items, everything is already in.
+
+If a Drive recipe failed (listed under `problems` in the Summary), it won't be retried automatically. To retry it, open Supabase → Table Editor → `import_jobs`, find the row with status `error`, and change `status` to `pending`. Supabase then hands it back to n8n. Each recipe is attempted at most 3 times, so a bad screenshot can't keep costing money.
 
 Each recipe takes about 20–60 seconds, so a batch of 25 takes roughly 15–25 minutes.
 

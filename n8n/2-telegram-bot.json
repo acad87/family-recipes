@@ -63,7 +63,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const u = $('Telegram').first().json;\nconst s = $('Settings').first().json;\nconst allowed = String(s.allowed_telegram_ids).split(',').map(x => x.trim()).filter(Boolean);\nconst from = u.callback_query?.from?.id ?? u.message?.from?.id;\nconst chat = u.callback_query?.message?.chat?.id ?? u.message?.chat?.id;\nconst out = { route: 4, chat_id: chat, user_id: from };\n// route: 0 button tap, 1 screenshot/text for the recipe, 2 help, 3 unsupported file, 4 ignore\nif (!from || !allowed.includes(String(from))) return [{ json: out }];\n\nif (u.callback_query) {\n  const [action, job_id] = String(u.callback_query.data || '').split(':');\n  return [{ json: { ...out, route: 0, cb_id: u.callback_query.id, action, job_id,\n                    button: action === 'x' ? 1 : 0 } }];\n}\nconst m = u.message;\nif (!m) return [{ json: out }];\nconst okTypes = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };\nlet file_id = null, mime = null;\nif (Array.isArray(m.photo) && m.photo.length) {\n  file_id = m.photo[m.photo.length - 1].file_id;   // largest size Telegram has\n  mime = 'image/jpeg';\n} else if (m.document) {\n  if (!okTypes[m.document.mime_type]) return [{ json: { ...out, route: 3 } }];\n  file_id = m.document.file_id; mime = m.document.mime_type;\n}\nconst text = (m.caption || m.text || '').trim();\nif (!file_id && /^\\/(start|help)/i.test(text)) return [{ json: { ...out, route: 2 } }];\nif (!file_id && !text) return [{ json: { ...out, route: 3 } }];\nconst path = file_id ? `telegram/${chat}/${m.message_id}-${u.update_id}.${okTypes[mime]}` : null;\nreturn [{ json: { ...out, route: 1, file_id, mime, path, text: text || null, has_file: !!file_id } }];"
+        "jsCode": "const u = $('Telegram').first().json;\nconst s = $('Settings').first().json;\nconst allowed = String(s.allowed_telegram_ids).split(',').map(x => x.trim()).filter(Boolean);\nconst from = u.callback_query?.from?.id ?? u.message?.from?.id;\nconst chat = u.callback_query?.message?.chat?.id ?? u.message?.chat?.id;\nconst out = { route: 4, chat_id: chat, user_id: from };\n// route: 0 button tap, 1 screenshot/text for the recipe, 2 help, 3 unsupported file, 4 ignore\nif (!from || !allowed.includes(String(from))) return [{ json: out }];\n\nif (u.callback_query) {\n  const [action, job_id] = String(u.callback_query.data || '').split(':');\n  return [{ json: { ...out, route: 0, cb_id: u.callback_query.id, action, job_id,\n                    button: action === 'x' ? 1 : 0 } }];\n}\nconst m = u.message;\nif (!m) return [{ json: out }];\nconst okTypes = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };\nlet file_id = null, mime = null;\nif (Array.isArray(m.photo) && m.photo.length) {\n  const best = m.photo.reduce((a, b) => ((b.width || 0) * (b.height || 0) > (a.width || 0) * (a.height || 0) ? b : a));\n  file_id = best.file_id;                          // largest size Telegram has\n  mime = 'image/jpeg';\n} else if (m.document) {\n  if (!okTypes[m.document.mime_type]) return [{ json: { ...out, route: 3 } }];\n  file_id = m.document.file_id; mime = m.document.mime_type;\n}\nconst text = (m.caption || m.text || '').trim();\nif (!file_id && /^\\/(start|help)/i.test(text)) return [{ json: { ...out, route: 2 } }];\nif (!file_id && !text) return [{ json: { ...out, route: 3 } }];\nconst path = file_id ? `telegram/${chat}/${m.message_id}-${u.update_id}.${okTypes[mime]}` : null;\nreturn [{ json: { ...out, route: 1, file_id, mime, path, text: text || null, has_file: !!file_id } }];"
       },
       "id": "50609caf-ee0e-50b9-a564-34ba876024c5",
       "name": "Understand message",
@@ -145,7 +145,8 @@
           "id": "rcpTelegramBot001",
           "name": "Recipes Telegram bot"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -184,7 +185,8 @@
           "id": "rcpSupabaseKey001",
           "name": "Supabase secret key"
         }
-      }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -463,6 +465,10 @@
             {
               "name": "status",
               "value": "in.(collecting,error)"
+            },
+            {
+              "name": "attempts",
+              "value": "lt.3"
             }
           ]
         },
@@ -563,7 +569,7 @@
         "resource": "message",
         "operation": "sendMessage",
         "chatId": "={{ $('Understand message').first().json.chat_id }}",
-        "text": "=That recipe has already been sent. ✔️ Send new screenshots to start another one.",
+        "text": "=That recipe was already sent, or it has failed 3 times. ✔️ Send new screenshots to start again.",
         "additionalFields": {
           "appendAttribution": false,
           "parse_mode": "HTML"
@@ -690,6 +696,32 @@
       "parameters": {
         "resource": "message",
         "operation": "sendMessage",
+        "chatId": "={{ $('Understand message').first().json.chat_id }}",
+        "text": "=Sorry, I couldn't save that screenshot. Please send it again. 🙏",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "3f73e7e7-5cf9-5647-9ea4-d95286838e7b",
+      "name": "Screenshot failed",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        80
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "rcpTelegramBot001",
+          "name": "Recipes Telegram bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
         "chatId": "={{ $json.chat_id }}",
         "text": "=I can only read screenshots sent as photos, or text. Try sending it again as a photo. 🙂",
         "additionalFields": {
@@ -697,7 +729,7 @@
           "parse_mode": "HTML"
         }
       },
-      "id": "3f73e7e7-5cf9-5647-9ea4-d95286838e7b",
+      "id": "331bdb30-b640-518b-ba1a-4f07a155b73e",
       "name": "Unsupported",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
@@ -805,6 +837,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Screenshot failed",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -813,6 +852,13 @@
         [
           {
             "node": "Add screenshot to recipe",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Screenshot failed",
             "type": "main",
             "index": 0
           }
