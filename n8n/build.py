@@ -245,6 +245,8 @@ if (p.needs_signing) {
 const slugs = list => list.map(t => t.slug);
 const legend = list => list.map(t => `${t.slug} = ${t.label}`).join('; ');
 const nullable = t => ({ type: [t, 'null'] });
+// strict schemas reject enum + type array; a choice-or-empty field is written as anyOf
+const oneOrNull = values => ({ anyOf: [{ type: 'string', enum: values }, { type: 'null' }] });
 
 const schema = {
   type: 'object',
@@ -258,13 +260,13 @@ const schema = {
     slow_cook: { type: 'boolean', description: 'true if cooked low and slow for 2+ hours (slow cooker, oven braise)' },
     hands_on_min: { ...nullable('integer'), description: 'Active prep/cooking minutes' },
     total_min: { ...nullable('integer'), description: 'Total minutes start to finish, including oven/simmer/rest time' },
-    effort: { type: ['string', 'null'], enum: ['weeknight', 'weekend', null] },
-    cost: { type: ['string', 'null'], enum: ['£', '££', '£££', null] },
+    effort: oneOrNull(['weeknight', 'weekend']),
+    cost: oneOrNull(['£', '££', '£££']),
     fridge_days: { ...nullable('integer'), description: 'Days the cooked dish keeps in the fridge' },
     freezer_months: { ...nullable('integer'), description: 'Months it keeps frozen; 0 = does not freeze well' },
     reheat: { type: 'array', items: { type: 'string', enum: slugs(p.reheat) } },
     equipment: { type: 'array', items: { type: 'string', enum: slugs(p.equipment) } },
-    lunchbox: { type: ['string', 'null'], enum: ['ambient', 'ice_pack', 'no', null] },
+    lunchbox: oneOrNull(['ambient', 'ice_pack', 'no']),
     lunchbox_notes: { type: 'string' },
     toddler_ok: { type: ['boolean', 'null'] },
     toddler_notes: { type: 'string' },
