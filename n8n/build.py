@@ -196,7 +196,7 @@ w = WF(EXTRACT_NAME, WF_EXTRACT)
 w.add("When called", "n8n-nodes-base.executeWorkflowTrigger", 1.1,
       {"inputSource": "workflowInputs", "workflowInputs": {"values": [{"name": "job_id", "type": "string"}]}}, (0, 300))
 settings(w, (220, 300), {"supabase_url": SUPABASE_URL, "anthropic_url": ANTHROPIC_URL,
-                         "model": "claude-sonnet-5-5", "max_tokens": 8000})
+                         "model": "claude-sonnet-5-5", "max_tokens": 16000})
 http(w, "Get job", (440, 300), "GET", REST + "/import_jobs", "supabase",
      query={"id": "=eq.{{ $('When called').first().json.job_id }}",
             "select": "id,source,status,images,texts,tg_chat_id"},
@@ -295,7 +295,25 @@ const schema = {
              'allergens', 'nutrients', 'lunchbox', 'fridge_days', 'freezer_months', 'warnings'],
 };
 
-const system = `You turn recipe screenshots (usually Instagram posts) into structured recipes for a family in Manchester, UK: two adults and two young children (about 4 and 1). They cook from scratch. Call the save_recipe tool exactly once.
+// Claude Sonnet 5.5 rejects forced tool_choice, so we use tool_choice "auto" plus a
+// strict tool. Strict tools need additionalProperties:false and (to stay within the
+// 24-optional-parameter limit) every property listed as required. Set STRICT = false
+// only if Anthropic ever answers "Schema is too complex for compilation".
+const STRICT = true;
+function strictify(node) {
+  if (node && typeof node === 'object') {
+    if (node.type === 'object' && node.properties) {
+      node.additionalProperties = false;
+      node.required = Object.keys(node.properties);
+      Object.values(node.properties).forEach(strictify);
+    }
+    if (node.items) strictify(node.items);
+  }
+  return node;
+}
+if (STRICT) strictify(schema);
+
+const system = `You turn recipe screenshots (usually Instagram posts) into structured recipes for a family in Manchester, UK: two adults and two young children (about 4 and 1). They cook from scratch. Always answer by calling the save_recipe tool exactly once — never reply with plain text, even when there is no recipe (then set is_recipe to false). Use an empty string for text fields you have nothing for.
 
 TRANSCRIBE FAITHFULLY
 - Only use ingredients, quantities and steps that appear in the material. Never invent them.
@@ -346,8 +364,8 @@ return [{ json: { body: {
   model: s.model,
   max_tokens: s.max_tokens,
   system,
-  tools: [{ name: 'save_recipe', description: 'Save the extracted recipe', input_schema: schema }],
-  tool_choice: { type: 'tool', name: 'save_recipe' },
+  tools: [{ name: 'save_recipe', description: 'Save the extracted recipe. Always call this exactly once.', strict: STRICT, input_schema: schema }],
+  tool_choice: { type: 'auto' },
   messages: [{ role: 'user', content }],
 } } }];
 """
