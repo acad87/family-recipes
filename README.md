@@ -2,7 +2,8 @@
 
 A private recipe library and weekly planner for our family: packed lunches, family dinners, batch cooking, the freezer and a shopping list split by shop.
 
-- **Phase 1 (this commit):** database + recipe import from screenshots (Telegram bot and Google Drive bulk import). See [`docs/SETUP.md`](docs/SETUP.md).
+- **Where we are / next steps:** [`docs/NEXT-STEPS.md`](docs/NEXT-STEPS.md)
+- **Phase 1:** database + recipe import from screenshots (Telegram bot and Google Drive bulk import). See [`docs/SETUP.md`](docs/SETUP.md).
 - Phase 2: iPad app (library, search, recipe page, cook mode, add recipe, inbox review).
 - Phase 3: weekly plan, suggestions, shopping list.
 - Phase 4: freezer inventory and ratings.

@@ -212,6 +212,12 @@ create table if not exists public.recipes (
   approved_at       timestamptz
 );
 create index if not exists recipes_status_idx on public.recipes (status);
+
+-- Recipe picture: one of the source screenshots plus the area that shows the dish.
+-- cover_crop = {"left":0..1,"top":0..1,"right":0..1,"bottom":0..1} as fractions of the
+-- screenshot; null = show the whole screenshot. (Added after the first release, hence ALTER.)
+alter table public.recipes add column if not exists cover_image text;
+alter table public.recipes add column if not exists cover_crop  jsonb;
 drop trigger if exists recipes_touch on public.recipes;
 create trigger recipes_touch before update on public.recipes
   for each row execute function public.touch_updated_at();
@@ -485,6 +491,10 @@ declare
   j  public.import_jobs;
   r  jsonb := coalesce(p_recipe, '{}'::jsonb);
   new_id uuid;
+  c  jsonb;
+  v_cover text;
+  v_crop  jsonb;
+  l numeric; t numeric; rt numeric; b numeric;
 begin
   select * into j from public.import_jobs where id = p_job_id for update;
   if not found then
@@ -499,11 +509,32 @@ begin
     raise exception 'recipe has no title';
   end if;
 
+  -- Picture: screenshot number (1-based, as Claude saw them) + crop box, sanity-checked
+  c := r->'cover';
+  if jsonb_typeof(c) = 'string' then
+    begin c := (c #>> '{}')::jsonb; exception when others then c := null; end;
+  end if;
+  if jsonb_typeof(c) = 'object' and (c->>'screenshot') ~ '^\d+$'
+     and (c->>'screenshot')::int between 1 and least(cardinality(j.images), 20) then
+    v_cover := j.images[(c->>'screenshot')::int];
+    begin
+      l  := greatest(0, least(1, (c->>'left')::numeric));
+      t  := greatest(0, least(1, (c->>'top')::numeric));
+      rt := greatest(0, least(1, (c->>'right')::numeric));
+      b  := greatest(0, least(1, (c->>'bottom')::numeric));
+      if rt - l >= 0.1 and b - t >= 0.05 then
+        v_crop := jsonb_build_object('left', round(l, 4), 'top', round(t, 4), 'right', round(rt, 4), 'bottom', round(b, 4));
+      end if;
+    exception when others then v_crop := null;
+    end;
+  end if;
+
   insert into public.recipes (
     status, title, description, source_name, source_url, sections, servings, slow_cook,
     hands_on_min, total_min, effort, cost, fridge_days, freezer_months, reheat, equipment,
     lunchbox, lunchbox_notes, toddler_ok, toddler_notes, hidden_veg, nutrients, allergens,
-    ingredients, steps, tips, images, ai_warnings, ai_model, import_job_id, created_by)
+    ingredients, steps, tips, images, ai_warnings, ai_model, import_job_id, created_by,
+    cover_image, cover_crop)
   values (
     'inbox',
     left(btrim(r->>'title'), 200),
@@ -535,7 +566,9 @@ begin
     public.jarr(r->'warnings'),
     p_model,
     j.id,
-    j.created_by
+    j.created_by,
+    v_cover,
+    v_crop
   ) returning id into new_id;
 
   update public.import_jobs set status = 'done', recipe_id = new_id, error = null where id = j.id;

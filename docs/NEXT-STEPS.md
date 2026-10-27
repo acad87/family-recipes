@@ -1,0 +1,48 @@
+# Where we are and what's next
+
+_Last updated: 27 Oct 2026_
+
+## Done ✅
+
+- Supabase project `family-recipes` (London): tables, access rules, logins for Daddy and Mummy, family list (Daddy, Mummy, Sisi, Tata). RLS confirmed on all 13 tables.
+- n8n updated from 2.8.3 to **2.44.4**, pinned on purpose (the version all workflows are tested on). A backup was taken first: `/home/node/.n8n/backup-2026-10-27-*.json`.
+- n8n credentials: `Supabase secret key`, `Anthropic API key`, `Recipes Telegram bot`, `Recipes job secret`.
+- Supabase → n8n link (`02_n8n_link.sql`) pointing at `https://n8n.sitalabs.co.uk/webhook/recipes-job`.
+- Workflows 1 (Extract), 2 (Telegram bot) and 3 (Process job) imported and published.
+- **First live recipe imported from Telegram** ("Mustard chicken with smashed roast potatoes").
+
+## Next session, in this order
+
+### 1. Check the first recipe's quality (5 min)
+Run the query from the chat in Supabase SQL Editor (title, ingredients, steps, allergens, lunchbox). Report anything wrong so the instructions can be tuned **before** the bulk import.
+
+### 2. Add recipe pictures (10 min) — *must happen before the Drive backlog import*
+Claude picks the screenshot that shows the finished dish and the area to crop. Nothing to crop by hand.
+
+1. Supabase **SQL Editor**: paste and run the whole of `supabase/schema.sql` again. It's safe to re-run; it adds the two picture fields (`cover_image`, `cover_crop`) and updates the save function.
+2. n8n workflow **1 Extract recipe** → node **Build Claude request** → replace all the code with the latest `build-claude-request.js`. Check: Cmd+F `PICTURE` finds 1 match. Then **Save → Publish**.
+3. Test: send the bot a recipe including the screenshot that shows the dish, tap Done. In Supabase, `select title, cover_image, cover_crop from recipes order by created_at desc limit 1;` should show a screenshot path and a crop.
+
+**How to screenshot from now on:** include the screenshot showing the dish photo (or a paused Reel frame) **with** the recipe screenshots, in the same Telegram batch or the same Drive subfolder.
+
+### 3. Add Laura to the bot (5 min)
+1. Laura opens the bot link, taps **Start**, sends `hi`. The bot ignores her for now.
+2. n8n → Executions → **Recipes · 2 Telegram bot** → latest run → node **Understand message** → copy `user_id`.
+3. Workflow 2 → **Settings** node → `allowed_telegram_ids` = `8178499856,HER_ID` → **Save → Publish**.
+
+### 4. Google Drive backlog import (30 min + running time)
+1. Create the **Google Drive** credential in n8n (OAuth). Guided step by step next session.
+2. Import workflows **5** then **4**, set credentials (watch out for the gotcha below), re-link **Read recipe** and **Import one recipe**, publish **5**.
+3. Screenshot the Instagram saved posts into a Drive folder: one loose screenshot per single-screen recipe, one **subfolder** per multi-screen recipe (with the dish photo inside it).
+4. Run workflow 4 with `max_recipes = 5`, check them, then 25 at a time.
+
+### 5. Phase 2: the iPad app
+Design A (kitchen notebook): login, Inbox to review and approve, library with filters and plain-English search, recipe page with picture, cook mode, add recipe from screenshots.
+
+## Lessons from setup (keep for future changes)
+
+- **Importing a workflow silently assigns credentials.** n8n fills every Header Auth node with the most recently created Header Auth credential, without showing a warning. After any import, open each node and check its credential.
+- **n8n 2.x runs the published version.** After editing a node: Save **and** Publish.
+- **Claude Sonnet 5.5 API changes:** no forced `tool_choice` (use `auto` + `strict: true`), and strict schemas reject `enum` combined with a type array (use `anyOf`). Both are handled in the current code. If Anthropic ever says "Schema is too complex", set `const STRICT = false;` in Build Claude request.
+- **Re-running `schema.sql` is safe** and is how database changes are applied.
+- **Never share screenshots of EasyPanel → Environment** (it shows the database password and encryption key).

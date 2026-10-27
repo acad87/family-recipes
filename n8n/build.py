@@ -292,6 +292,23 @@ const schema = {
     steps: { type: 'array', items: { type: 'string' } },
     tips: { type: 'string', description: 'Useful tips, swaps or serving ideas from the source; empty if none' },
     warnings: { type: 'array', items: { type: 'string' }, description: 'Things the parent should double-check' },
+    cover: {
+      description: 'Where the photo of the finished dish is, or null if no screenshot shows it',
+      anyOf: [
+        {
+          type: 'object',
+          properties: {
+            screenshot: { type: 'integer', description: 'Screenshot number as labelled (1 = first)' },
+            left: { type: 'number', description: 'Left edge of the dish photo, 0 = left side of the screenshot, 1 = right side' },
+            top: { type: 'number', description: 'Top edge, 0 = top of the screenshot, 1 = bottom' },
+            right: { type: 'number' },
+            bottom: { type: 'number' },
+          },
+          required: ['screenshot', 'left', 'top', 'right', 'bottom'],
+        },
+        { type: 'null' },
+      ],
+    },
   },
   required: ['is_recipe', 'title', 'sections', 'servings', 'total_min', 'ingredients', 'steps',
              'allergens', 'nutrients', 'lunchbox', 'fridge_days', 'freezer_months', 'warnings'],
@@ -310,6 +327,7 @@ function strictify(node) {
       Object.values(node.properties).forEach(strictify);
     }
     if (node.items) strictify(node.items);
+    if (Array.isArray(node.anyOf)) node.anyOf.forEach(strictify);
   }
   return node;
 }
@@ -349,7 +367,10 @@ TAGS (estimates are fine, but be conservative and add a warning when a value is 
 - nutrients (only when clearly a meaningful source per portion): ${legend(p.nutrients)}.
 - allergens, UK's 14 (always add the warning "Allergens are estimated — check product labels" if any packaged ingredient is used; judge from the ingredients; e.g. pasta/bread/flour → gluten, butter/cheese/milk → milk, pesto → tree_nuts and milk, soy sauce → soya and gluten, Worcestershire sauce → fish; do not guess beyond likely ingredients): ${legend(p.allergens)}.
 - hidden_veg: count only vegetables that are blended, grated or otherwise hidden.
-- warnings: anything a parent should check before trusting the recipe (missing quantities, estimated times, unreadable parts, food safety concerns).`;
+- warnings: anything a parent should check before trusting the recipe (missing quantities, estimated times, unreadable parts, food safety concerns).
+
+PICTURE
+- cover: if one of the screenshots shows a photo or video frame of the finished dish, give that screenshot's number and the box around just the food photo, as fractions of the screenshot (left/top/right/bottom between 0 and 1). Keep the box inside the photo itself: exclude the status bar, profile row, buttons, likes and caption text. Prefer the most appetising, least cluttered shot. If no screenshot shows the dish (only text or ingredients), use null.`;
 
 const content = [];
 links.forEach((url, i) => {
