@@ -26,10 +26,11 @@ CRED = {
     "drive": {"googleDriveOAuth2Api": {"id": "rcpGoogleDrive001", "name": "Google Drive"}},
 }
 
-SUPABASE_URL = MOCK if TEST else "https://YOUR-PROJECT.supabase.co"
+import os
+SUPABASE_URL = MOCK if TEST else os.environ.get("RCP_SUPABASE_URL", "https://YOUR-PROJECT.supabase.co")
 ANTHROPIC_URL = (MOCK + "/anthropic/v1/messages") if TEST else "https://api.anthropic.com/v1/messages"
 DRIVE_API = (MOCK + "/drive") if TEST else "https://www.googleapis.com"
-TELEGRAM_IDS = "111,222" if TEST else "PUT-YOUR-TELEGRAM-ID,PUT-LAURAS-TELEGRAM-ID"
+TELEGRAM_IDS = "111,222" if TEST else os.environ.get("RCP_TELEGRAM_IDS", "PUT-YOUR-TELEGRAM-ID,PUT-LAURAS-TELEGRAM-ID")
 
 
 _counter = [0]
@@ -86,7 +87,7 @@ class WF:
                              "callerPolicy": "workflowsFromSameOwner"},
                 "pinData": {}, "active": False, "meta": {"templateCredsSetupCompleted": False},
                 "tags": []}
-        d = OUT / "test" if TEST else OUT
+        d = OUT / "test" if TEST else pathlib.Path(os.environ.get("RCP_OUT", OUT))
         d.mkdir(exist_ok=True)
         (d / filename).write_text(json.dumps(data, indent=2, ensure_ascii=False))
         # every connection target must exist
