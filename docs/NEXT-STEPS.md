@@ -16,7 +16,8 @@ _Last updated: 28 Oct 2026_
 - Google Drive credential (Google Cloud project `family-recipes-n8n`, OAuth in Testing mode — reconnect every ~7 days if Drive calls fail).
 - Workflows 4 and 5 imported; **first Drive batch of 5 recipes imported successfully** (28 Oct).
 - Original-post links: link files (.txt / Google Doc) in Drive subfolders, links pasted in Telegram → `recipes.source_url`. Confirmed on all 5 recipes.
-- Clickable iPad mockup (design A, landscape) reviewed: "seems ok".
+- Clickable iPad mockup (design A) reviewed: "seems ok".
+- **Phase 2 app built** (`app/`): login, library with filters and smart search, recipe page with cropped picture and notes boxes, cook mode (screen stays on), Inbox one-at-a-time + Approve all, edit, add from screenshots, import status with Retry. Portrait-first, works on iPhone. Tested in Chromium at iPad-portrait and iPhone sizes against real access rules (37 checks).
 
 ## Next session, in this order
 
@@ -50,7 +51,7 @@ Claude picks the screenshot that shows the finished dish and the area to crop. N
 3. Screenshot the Instagram saved posts into a Drive folder: one loose screenshot per single-screen recipe, one **subfolder** per multi-screen recipe (with the dish photo inside it).
 4. Run workflow 4 with `max_recipes = 5`, check them, then 25 at a time.
 
-### 5. Phase 2: the iPad app
+### 5. Phase 2: the iPad app — built; to go live: enable GitHub Pages (see SETUP-APP.md)
 Design A (kitchen notebook): login, Inbox to review and approve, library with filters and plain-English search, recipe page with picture, cook mode, add recipe from screenshots.
 
 ## Lessons from setup (keep for future changes)

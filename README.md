@@ -16,5 +16,6 @@ A private recipe library and weekly planner for our family: packed lunches, fami
 | `supabase/02_n8n_link.sql` | Makes Supabase call n8n when a recipe is ready to read. |
 | `n8n/*.json` | The five n8n workflows, ready to import. |
 | `n8n/build.py` | Generates those JSON files. Edit this, then run `python3 n8n/build.py`. |
+| `app/` | The iPad/iPhone app (GitHub Pages). Setup: [`docs/SETUP-APP.md`](docs/SETUP-APP.md). |
 
 No secrets are stored in this repo. Keys live in n8n credentials and Supabase.
