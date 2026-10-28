@@ -218,6 +218,11 @@ create index if not exists recipes_status_idx on public.recipes (status);
 -- screenshot; null = show the whole screenshot. (Added after the first release, hence ALTER.)
 alter table public.recipes add column if not exists cover_image text;
 alter table public.recipes add column if not exists cover_crop  jsonb;
+
+-- Estimated saturated fat per serving (grams) and swaps that lower it. Estimates only.
+alter table public.recipes add column if not exists sat_fat_g   numeric(5,1)
+  check (sat_fat_g is null or sat_fat_g between 0 and 100);
+alter table public.recipes add column if not exists heart_swaps text;
 drop trigger if exists recipes_touch on public.recipes;
 create trigger recipes_touch before update on public.recipes
   for each row execute function public.touch_updated_at();
@@ -534,7 +539,7 @@ begin
     hands_on_min, total_min, effort, cost, fridge_days, freezer_months, reheat, equipment,
     lunchbox, lunchbox_notes, toddler_ok, toddler_notes, hidden_veg, nutrients, allergens,
     ingredients, steps, tips, images, ai_warnings, ai_model, import_job_id, created_by,
-    cover_image, cover_crop)
+    cover_image, cover_crop, sat_fat_g, heart_swaps)
   values (
     'inbox',
     left(btrim(r->>'title'), 200),
@@ -568,7 +573,10 @@ begin
     j.id,
     j.created_by,
     v_cover,
-    v_crop
+    v_crop,
+    case when (r->>'sat_fat_g') ~ '^\d+(\.\d+)?$' and (r->>'sat_fat_g')::numeric <= 100
+         then round((r->>'sat_fat_g')::numeric, 1) end,
+    nullif(btrim(r->>'heart_swaps'), '')
   ) returning id into new_id;
 
   update public.import_jobs set status = 'done', recipe_id = new_id, error = null where id = j.id;

@@ -1,6 +1,6 @@
 # Where we are and what's next
 
-_Last updated: 27 Oct 2026_
+_Last updated: 28 Oct 2026_
 
 ## Done ✅
 
@@ -10,13 +10,21 @@ _Last updated: 27 Oct 2026_
 - Supabase → n8n link (`02_n8n_link.sql`) pointing at `https://n8n.sitalabs.co.uk/webhook/recipes-job`.
 - Workflows 1 (Extract), 2 (Telegram bot) and 3 (Process job) imported and published.
 - **First live recipe imported from Telegram** ("Mustard chicken with smashed roast potatoes").
+- Quality checked; prompt tuned (Brazilian tag only for Brazilian dishes, pack sizes → g/ml, UK product names, toddler alcohol/salt rule).
+- Recipe pictures (screenshot + crop) live and confirmed.
+- Saturated fat estimate per serving + heart-friendly swaps: built and tested (v5 code) — install below.
 
 ## Next session, in this order
 
-### 1. Check the first recipe's quality (5 min)
+### 0. Install saturated fat (v5) — 5 min
+1. Re-run `supabase/schema.sql` in SQL Editor (adds `sat_fat_g`, `heart_swaps`).
+2. Paste v5 `build-claude-request.js` into workflow 1 → Build Claude request (Cmd+F `sat_fat_g: estimate` = 1 match) → Save → Publish.
+3. Resend one recipe and check `select title, sat_fat_g, heart_swaps from recipes order by created_at desc limit 1;`
+
+### 1. ~~Check the first recipe's quality~~ ✅
 Run the query from the chat in Supabase SQL Editor (title, ingredients, steps, allergens, lunchbox). Report anything wrong so the instructions can be tuned **before** the bulk import.
 
-### 2. Add recipe pictures (10 min) — *must happen before the Drive backlog import*
+### 2. ~~Add recipe pictures~~ ✅ (kept for reference)
 Claude picks the screenshot that shows the finished dish and the area to crop. Nothing to crop by hand.
 
 1. Supabase **SQL Editor**: paste and run the whole of `supabase/schema.sql` again. It's safe to re-run; it adds the two picture fields (`cover_image`, `cover_crop`) and updates the save function.
@@ -44,5 +52,6 @@ Design A (kitchen notebook): login, Inbox to review and approve, library with fi
 - **Importing a workflow silently assigns credentials.** n8n fills every Header Auth node with the most recently created Header Auth credential, without showing a warning. After any import, open each node and check its credential.
 - **n8n 2.x runs the published version.** After editing a node: Save **and** Publish.
 - **Claude Sonnet 5.5 API changes:** no forced `tool_choice` (use `auto` + `strict: true`), and strict schemas reject `enum` combined with a type array (use `anyOf`). Both are handled in the current code. If Anthropic ever says "Schema is too complex", set `const STRICT = false;` in Build Claude request.
+- **Strict schema budget:** 14 of 16 nullable ("union") fields are used. New nullable fields must replace one or be made non-nullable.
 - **Re-running `schema.sql` is safe** and is how database changes are applied.
 - **Never share screenshots of EasyPanel → Environment** (it shows the database password and encryption key).

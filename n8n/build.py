@@ -271,6 +271,8 @@ const schema = {
     toddler_ok: { type: ['boolean', 'null'] },
     toddler_notes: { type: 'string' },
     hidden_veg: { type: 'integer', description: 'How many vegetables are blended/grated in so kids do not notice' },
+    sat_fat_g: { ...nullable('number'), description: 'Estimated saturated fat in grams per serving' },
+    heart_swaps: { type: 'string', description: 'One or two practical swaps that lower saturated fat; empty if already low' },
     nutrients: { type: 'array', items: { type: 'string', enum: slugs(p.nutrients) } },
     allergens: { type: 'array', items: { type: 'string', enum: slugs(p.allergens) } },
     ingredients: {
@@ -368,6 +370,8 @@ TAGS (estimates are fine, but be conservative and add a warning when a value is 
 - lunchbox: "ambient" only for foods safe unrefrigerated for about 4 hours (plain bread or crackers, whole or cut fruit, raw veg sticks, plain bakes without cream, custard, cheese or meat). Anything containing cheese, hummus, yoghurt, cooked meat, fish, egg, cooked rice or pasta, or creamy sauces → "ice_pack". "no" if it must be hot, is messy, or is unsuitable for a school lunchbox. For rice dishes add to lunchbox_notes: cool quickly, keep chilled, eat within 24 hours. Many UK schools are nut-free: if it contains nuts, say so in lunchbox_notes.
 - toddler_ok: true if a portion suits a 1-year-old or can be taken out before adding salt, chilli, whole nuts or other unsuitable items. Alcohol (wine, beer) and very salty ingredients (soy sauce, miso, stock cubes, bacon) in a sauce make it unsuitable for the baby unless the child's portion can be served without that sauce: then toddler_ok is true and toddler_notes must say exactly what to take out and when. In toddler_notes give the adaptation and choking advice where relevant (cut grapes and cherry tomatoes lengthways, no whole nuts for under-5s, no added salt for babies).
 - nutrients (only when clearly a meaningful source per portion): ${legend(p.nutrients)}.
+- sat_fat_g: estimate saturated fat in grams per serving (total for the recipe divided by servings), using typical UK food composition values (e.g. 100 ml single cream ≈ 12 g, 100 ml double cream ≈ 30 g, 10 g butter ≈ 5 g, 30 g cheddar ≈ 6 g, 1 tbsp olive oil ≈ 2 g, 100 g skinless chicken breast ≈ 0.5 g, 100 g beef mince 15% fat ≈ 6 g, 100 ml coconut milk ≈ 15 g). Where amounts are "to taste" or missing, assume typical amounts and add the warning "Saturated fat is an estimate". Use null only if it is impossible to estimate.
+- heart_swaps: one or two practical swaps that would noticeably lower saturated fat without spoiling the dish (e.g. half-fat crème fraîche instead of double cream, olive oil instead of butter, skinless thighs, less cheese with a stronger one). Empty string if it is already low (about 3 g or less per serving).
 - allergens, UK's 14 (always add the warning "Allergens are estimated — check product labels" if any packaged ingredient is used; judge from the ingredients; e.g. pasta/bread/flour → gluten, butter/cheese/milk → milk, pesto → tree_nuts and milk, soy sauce → soya and gluten, Worcestershire sauce → fish; do not guess beyond likely ingredients): ${legend(p.allergens)}.
 - hidden_veg: count only vegetables that are blended, grated or otherwise hidden.
 - warnings: anything a parent should check before trusting the recipe (missing quantities, estimated times, unreadable parts, food safety concerns).
