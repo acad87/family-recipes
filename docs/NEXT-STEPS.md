@@ -15,6 +15,8 @@ _Last updated: 28 Oct 2026_
 - Saturated fat estimate per serving + heart-friendly swaps: installed (v5) and confirmed live.
 - Google Drive credential (Google Cloud project `family-recipes-n8n`, OAuth in Testing mode — reconnect every ~7 days if Drive calls fail).
 - Workflows 4 and 5 imported; **first Drive batch of 5 recipes imported successfully** (28 Oct).
+- Original-post links: link files (.txt / Google Doc) in Drive subfolders, links pasted in Telegram → `recipes.source_url`. Confirmed on all 5 recipes.
+- Clickable iPad mockup (design A, landscape) reviewed: "seems ok".
 
 ## Next session, in this order
 
