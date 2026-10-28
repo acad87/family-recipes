@@ -349,6 +349,8 @@ UK CONVENTIONS
 INGREDIENTS
 - item: the generic shopping name, lowercase, singular, without preparation words, so the same thing merges across recipes ("red onion", "chicken thigh", "chopped tomatoes", "plain flour", "egg", "garlic").
 - qty + unit describe how much to buy for the recipe as written; unit is one of g, kg, ml, l, tsp, tbsp, pinch, clove, tin, pack, bunch, slice, or null for whole items (2 eggs → qty 2, unit null). Use null qty for "to taste".
+- Packaged amounts ("1 box", "1 can", "1 cx", "1 pacote"): convert to grams or ml when the usual pack size is well known, and add a warning saying it was assumed (Brazilian creme de leite box ≈ 200 g; a can of chopped tomatoes ≈ 400 g; a can of coconut milk ≈ 400 ml).
+- Foreign ingredients: use the UK product a shopper would buy, keeping the original in brackets in display ("200 ml single cream (creme de leite)", "plain flour (farinha de trigo)").
 - display: the full line as a cook would read it ("2 red onions, finely sliced").
 - category for the shop it comes from: ${legend(p.categories.map(c => ({ slug: c.category, label: c.label })))}.
 
@@ -357,13 +359,14 @@ STEPS
 
 TAGS (estimates are fine, but be conservative and add a warning when a value is a pure guess)
 - sections (choose all that fit): ${legend(p.sections)}.
+  brazilian only for dishes that are genuinely Brazilian (e.g. feijoada, pão de queijo, moqueca, strogonoff à brasileira, farofa, brigadeiro) — not just because the post is in Portuguese or the creator is Brazilian.
   packed_lunch only if it is good cold or at room temperature and easy for a 4-year-old to eat from a lunchbox. batch_freeze if it makes 6+ portions and freezes well. quick if total time is 25 minutes or less. weekend if it is long or fiddly.
 - effort: weeknight if hands-on time is about 30 minutes or less and nothing is fiddly; otherwise weekend.
 - cost per portion with UK supermarket prices: £ under about £1.50, ££ about £1.50–£3, £££ above.
 - fridge_days, following UK Food Standards Agency advice on leftovers: cooked rice dishes 1; other cooked dishes (meat, fish, egg, veg, pasta) 2; plain bakes without cream or custard 3–5. freezer_months: usually 3 for cooked dishes; 0 for things that freeze badly (salads, fried crispy food, mayo or cream-based sauces, boiled eggs). Where relevant, put in tips: cool and chill within 1–2 hours, reheat only once until steaming hot, eat defrosted food within 24 hours.
 - reheat: ${legend(p.reheat)}. equipment: ${legend(p.equipment)}.
 - lunchbox: "ambient" only for foods safe unrefrigerated for about 4 hours (plain bread or crackers, whole or cut fruit, raw veg sticks, plain bakes without cream, custard, cheese or meat). Anything containing cheese, hummus, yoghurt, cooked meat, fish, egg, cooked rice or pasta, or creamy sauces → "ice_pack". "no" if it must be hot, is messy, or is unsuitable for a school lunchbox. For rice dishes add to lunchbox_notes: cool quickly, keep chilled, eat within 24 hours. Many UK schools are nut-free: if it contains nuts, say so in lunchbox_notes.
-- toddler_ok: true if a portion suits a 1-year-old or can be taken out before adding salt, chilli, whole nuts or other unsuitable items. In toddler_notes give the adaptation and choking advice where relevant (cut grapes and cherry tomatoes lengthways, no whole nuts for under-5s, no added salt for babies).
+- toddler_ok: true if a portion suits a 1-year-old or can be taken out before adding salt, chilli, whole nuts or other unsuitable items. Alcohol (wine, beer) and very salty ingredients (soy sauce, miso, stock cubes, bacon) in a sauce make it unsuitable for the baby unless the child's portion can be served without that sauce: then toddler_ok is true and toddler_notes must say exactly what to take out and when. In toddler_notes give the adaptation and choking advice where relevant (cut grapes and cherry tomatoes lengthways, no whole nuts for under-5s, no added salt for babies).
 - nutrients (only when clearly a meaningful source per portion): ${legend(p.nutrients)}.
 - allergens, UK's 14 (always add the warning "Allergens are estimated — check product labels" if any packaged ingredient is used; judge from the ingredients; e.g. pasta/bread/flour → gluten, butter/cheese/milk → milk, pesto → tree_nuts and milk, soy sauce → soya and gluten, Worcestershire sauce → fish; do not guess beyond likely ingredients): ${legend(p.allergens)}.
 - hidden_veg: count only vegetables that are blended, grated or otherwise hidden.
