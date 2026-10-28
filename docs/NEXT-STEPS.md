@@ -12,11 +12,13 @@ _Last updated: 28 Oct 2026_
 - **First live recipe imported from Telegram** ("Mustard chicken with smashed roast potatoes").
 - Quality checked; prompt tuned (Brazilian tag only for Brazilian dishes, pack sizes → g/ml, UK product names, toddler alcohol/salt rule).
 - Recipe pictures (screenshot + crop) live and confirmed.
-- Saturated fat estimate per serving + heart-friendly swaps: built and tested (v5 code) — install below.
+- Saturated fat estimate per serving + heart-friendly swaps: installed (v5) and confirmed live.
+- Google Drive credential (Google Cloud project `family-recipes-n8n`, OAuth in Testing mode — reconnect every ~7 days if Drive calls fail).
+- Workflows 4 and 5 imported; **first Drive batch of 5 recipes imported successfully** (28 Oct).
 
 ## Next session, in this order
 
-### 0. Install saturated fat (v5) — 5 min
+### 0. ~~Install saturated fat (v5)~~ ✅
 1. Re-run `supabase/schema.sql` in SQL Editor (adds `sat_fat_g`, `heart_swaps`).
 2. Paste v5 `build-claude-request.js` into workflow 1 → Build Claude request (Cmd+F `sat_fat_g: estimate` = 1 match) → Save → Publish.
 3. Resend one recipe and check `select title, sat_fat_g, heart_swaps from recipes order by created_at desc limit 1;`
@@ -53,5 +55,7 @@ Design A (kitchen notebook): login, Inbox to review and approve, library with fi
 - **n8n 2.x runs the published version.** After editing a node: Save **and** Publish.
 - **Claude Sonnet 5.5 API changes:** no forced `tool_choice` (use `auto` + `strict: true`), and strict schemas reject `enum` combined with a type array (use `anyOf`). Both are handled in the current code. If Anthropic ever says "Schema is too complex", set `const STRICT = false;` in Build Claude request.
 - **Strict schema budget:** 14 of 16 nullable ("union") fields are used. New nullable fields must replace one or be made non-nullable.
+- **Sub-workflows must be published and re-linked before the first run.** If a run fails after creating import records, they block re-runs (duplicate protection): reset them to `pending` (retries via workflow 3) or delete them.
+- **Drive import stops at "Only new ones" with 0 items** = everything in the folder is already imported.
 - **Re-running `schema.sql` is safe** and is how database changes are applied.
 - **Never share screenshots of EasyPanel → Environment** (it shows the database password and encryption key).
