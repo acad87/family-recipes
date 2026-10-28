@@ -485,6 +485,15 @@ begin
 end;
 $$;
 
+-- Trim a text value and any quote marks wrapped around it; empty -> null.
+create or replace function public.clean_text(t text)
+returns text
+language sql immutable
+set search_path = ''
+as $$
+  select nullif(btrim(btrim(coalesce(t, '')), '"“”'''), '');
+$$;
+
 -- Save the AI result as an inbox recipe and close the job. Unknown tag
 -- values are dropped instead of failing the import.
 create or replace function public.complete_job(p_job_id uuid, p_recipe jsonb, p_model text default null)
@@ -543,9 +552,11 @@ begin
   values (
     'inbox',
     left(btrim(r->>'title'), 200),
-    nullif(btrim(r->>'description'), ''),
-    nullif(btrim(r->>'source_name'), ''),
-    nullif(btrim(r->>'source_url'), ''),
+    public.clean_text(r->>'description'),
+    public.clean_text(r->>'source_name'),
+    -- the link: from Claude if given, else the first web address in the text sent with the recipe
+    coalesce(public.clean_text(r->>'source_url'),
+             (regexp_match(array_to_string(j.texts, ' '), '(https?://[^\s<>"]+)'))[1]),
     public.clean_tags('section', public.jarr(r->'sections')),
     case when (r->>'servings') ~ '^\d+$' and (r->>'servings')::int between 1 and 60 then (r->>'servings')::int end,
     coalesce(r->>'slow_cook' = 'true', false),
@@ -558,15 +569,15 @@ begin
     public.clean_tags('reheat', public.jarr(r->'reheat')),
     public.clean_tags('equipment', public.jarr(r->'equipment')),
     case when r->>'lunchbox' in ('ambient','ice_pack','no') then r->>'lunchbox' end,
-    nullif(btrim(r->>'lunchbox_notes'), ''),
+    public.clean_text(r->>'lunchbox_notes'),
     case when r->>'toddler_ok' in ('true','false') then (r->>'toddler_ok')::boolean end,
-    nullif(btrim(r->>'toddler_notes'), ''),
+    public.clean_text(r->>'toddler_notes'),
     case when (r->>'hidden_veg') ~ '^\d+$' then least((r->>'hidden_veg')::int, 20) else 0 end,
     public.clean_tags('nutrient', public.jarr(r->'nutrients')),
     public.clean_tags('allergen', public.jarr(r->'allergens')),
     case when jsonb_typeof(r->'ingredients') = 'array' then r->'ingredients' else '[]'::jsonb end,
     case when jsonb_typeof(r->'steps') = 'array' then r->'steps' else '[]'::jsonb end,
-    nullif(btrim(r->>'tips'), ''),
+    public.clean_text(r->>'tips'),
     j.images,
     public.jarr(r->'warnings'),
     p_model,
@@ -576,7 +587,7 @@ begin
     v_crop,
     case when (r->>'sat_fat_g') ~ '^\d+(\.\d+)?$' and (r->>'sat_fat_g')::numeric <= 100
          then round((r->>'sat_fat_g')::numeric, 1) end,
-    nullif(btrim(r->>'heart_swaps'), '')
+    public.clean_text(r->>'heart_swaps')
   ) returning id into new_id;
 
   update public.import_jobs set status = 'done', recipe_id = new_id, error = null where id = j.id;

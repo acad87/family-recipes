@@ -683,9 +683,21 @@ w = WF(DRIVE_ONE_NAME, WF_DRIVE_ONE)
 w.add("When called", "n8n-nodes-base.executeWorkflowTrigger", 1.1,
       {"inputSource": "workflowInputs", "workflowInputs": {"values": [
           {"name": "ref", "type": "string"}, {"name": "name", "type": "string"},
-          {"name": "files", "type": "array"}]}}, (0, 300))
+          {"name": "files", "type": "array"}, {"name": "notes", "type": "array"}]}}, (0, 300))
 settings(w, (220, 300), {"supabase_url": SUPABASE_URL, "drive_api": DRIVE_API})
-code(w, "One item per screenshot", (440, 300), r"""
+# Notes: a .txt file or Google Doc in the recipe's subfolder (e.g. the Instagram link)
+if_true(w, "Has a note?", (440, 300), "={{ ($('When called').first().json.notes || []).length > 0 }}")
+code(w, "One item per note", (660, 160), r"""
+return ($('When called').first().json.notes || []).slice(0, 3).map(n => ({ json: n }));
+""")
+w.add("Read note", "n8n-nodes-base.httpRequest", 4.2, {
+    "method": "GET",
+    "url": "={{ $('Settings').first().json.drive_api }}/drive/v3/files/{{ $json.id }}{{ $json.mimeType === 'application/vnd.google-apps.document' ? '/export?mimeType=text/plain' : '?alt=media' }}",
+    "authentication": "predefinedCredentialType", "nodeCredentialType": "googleDriveOAuth2Api",
+    "options": {"response": {"response": {"responseFormat": "text", "outputPropertyName": "text"}}}},
+    (880, 160), CRED["drive"], onError="continueRegularOutput")
+code(w, "One item per screenshot", (1100, 300), r"""
+// Runs once for the whole recipe, whichever way it was reached
 const g = $('When called').first().json;
 const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 return (g.files || []).map((f, i) => ({ json: {
@@ -693,24 +705,35 @@ return (g.files || []).map((f, i) => ({ json: {
   path: `drive/${g.ref}/${String(i + 1).padStart(2, '0')}-${f.id}.${ext[f.mimeType] || 'jpg'}`,
 } }));
 """)
-http(w, "Download from Drive", (660, 300), "GET",
+http(w, "Download from Drive", (1320, 300), "GET",
      "={{ $('Settings').first().json.drive_api }}/drive/v3/files/{{ $json.file_id }}", "drive",
      query={"alt": "media", "supportsAllDrives": "true"}, file_response=True)
-http(w, "Upload to Supabase", (880, 300), "POST",
+http(w, "Upload to Supabase", (1540, 300), "POST",
      "=" + SB + "/storage/v1/object/recipe-images/{{ $('One item per screenshot').item.json.path }}", "supabase",
      headers={"Content-Type": "={{ $('One item per screenshot').item.json.mime }}", "x-upsert": "true"},
      binary_field="data")
-code(w, "Collect paths", (1100, 300), r"""
+code(w, "Collect paths", (1760, 300), r"""
 const g = $('When called').first().json;
 const paths = $('One item per screenshot').all().map(i => i.json.path);
 if ($input.all().length !== paths.length) throw new Error('Not every screenshot uploaded');
-return [{ json: { source: 'drive', status: 'processing', images: paths, source_ref: g.ref, texts: [] } }];
+let texts = [];
+try {
+  texts = $('Read note').all()
+    .map(i => String(i.json.text || '').trim())
+    .filter(t => t && !/^\{"error"/.test(t))
+    .map(t => t.slice(0, 4000));
+} catch (e) { /* no note in this recipe */ }
+return [{ json: { source: 'drive', status: 'processing', images: paths, source_ref: g.ref, texts } }];
 """)
-http(w, "Create import job", (1320, 300), "POST", REST + "/import_jobs", "supabase",
+http(w, "Create import job", (1980, 300), "POST", REST + "/import_jobs", "supabase",
      headers={"Prefer": "return=representation", **OBJ}, body="={{ JSON.stringify($json) }}")
-exec_wf(w, "Read recipe", (1540, 300), WF_EXTRACT, EXTRACT_NAME,
+exec_wf(w, "Read recipe", (2200, 300), WF_EXTRACT, EXTRACT_NAME,
         {"job_id": "={{ $json.id }}"}, {"job_id": "string"})
-w.chain("When called", "Settings", "One item per screenshot", "Download from Drive", "Upload to Supabase",
+w.chain("When called", "Settings", "Has a note?")
+w.link("Has a note?", "One item per note", 0)
+w.link("Has a note?", "One item per screenshot", 1)
+w.chain("One item per note", "Read note", "One item per screenshot")
+w.chain("One item per screenshot", "Download from Drive", "Upload to Supabase",
         "Collect paths", "Create import job", "Read recipe")
 w.dump("5-drive-import-one.json")
 
@@ -732,7 +755,7 @@ const files = $json.files || [];
 const out = [];
 for (const f of files) {
   if (f.mimeType === FOLDER) out.push({ json: { ref: f.id, name: f.name, kind: 'folder', files: [] } });
-  else if (IMG.includes(f.mimeType)) out.push({ json: { ref: f.id, name: f.name, kind: 'file', files: [f] } });
+  else if (IMG.includes(f.mimeType)) out.push({ json: { ref: f.id, name: f.name, kind: 'file', files: [f], notes: [] } });
 }
 return out;
 """
@@ -744,12 +767,15 @@ http(w, "List subfolder", (1100, 200), "GET", "={{ $('Settings').first().json.dr
             "supportsAllDrives": "true", "includeItemsFromAllDrives": "true"})
 code(w, "Subfolder screenshots", (1320, 200), r"""
 const IMG = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const NOTE = ['text/plain', 'application/vnd.google-apps.document'];
 const groups = $('Is a subfolder?').all(0);
+const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
 return $input.all().map((it, i) => {
   const g = groups[i].json;
-  const files = (it.json.files || []).filter(f => IMG.includes(f.mimeType))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  return { json: { ...g, files } };
+  const all = it.json.files || [];
+  const files = all.filter(f => IMG.includes(f.mimeType)).sort(byName);
+  const notes = all.filter(f => NOTE.includes(f.mimeType)).sort(byName);
+  return { json: { ...g, files, notes } };
 }).filter(x => x.json.files.length > 0);
 """)
 w.add("All recipes", "n8n-nodes-base.merge", 3, {}, (1540, 300))
@@ -767,8 +793,9 @@ return todo.slice(0, max).map(g => ({ json: g }));
 """)
 w.add("One at a time", "n8n-nodes-base.splitInBatches", 3, {"batchSize": 1, "options": {}}, (2420, 300))
 exec_wf(w, "Import one recipe", (2640, 400), WF_DRIVE_ONE, DRIVE_ONE_NAME,
-        {"ref": "={{ $json.ref }}", "name": "={{ $json.name }}", "files": "={{ $json.files }}"},
-        {"ref": "string", "name": "string", "files": "array"}, onError="continueRegularOutput")
+        {"ref": "={{ $json.ref }}", "name": "={{ $json.name }}", "files": "={{ $json.files }}",
+         "notes": "={{ $json.notes || [] }}"},
+        {"ref": "string", "name": "string", "files": "array", "notes": "array"}, onError="continueRegularOutput")
 w.add("Pause", "n8n-nodes-base.wait", 1.1,
       {"amount": "={{ $('Settings').first().json.pause_seconds }}", "unit": "seconds"}, (2860, 400),
       webhookId=str(uuid.uuid5(uuid.NAMESPACE_URL, "rcp-drive-pause")))

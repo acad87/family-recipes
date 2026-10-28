@@ -4,7 +4,7 @@
   "nodes": [
     {
       "parameters": {},
-      "id": "8640f688-d28c-5277-b71c-2772b15525dd",
+      "id": "7a33abf8-adba-5216-a265-c7a7106a603a",
       "name": "Start import",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -18,31 +18,31 @@
         "assignments": {
           "assignments": [
             {
-              "id": "e7dccc75-a880-59b7-ac42-59e40d29320a",
+              "id": "a9fd0637-6244-596c-8fd0-0c01da072488",
               "name": "supabase_url",
               "value": "https://YOUR-PROJECT.supabase.co",
               "type": "string"
             },
             {
-              "id": "814dbc1d-e6bd-5141-9db5-7439f96cadf8",
+              "id": "17e9b034-141a-53b3-9328-58e35f63fd61",
               "name": "drive_api",
               "value": "https://www.googleapis.com",
               "type": "string"
             },
             {
-              "id": "7ff913a2-37c6-5de4-a3d2-4ecb097b47ef",
+              "id": "eab1235e-9a9b-59d5-b662-9564ad0fda5b",
               "name": "drive_folder_id",
               "value": "PASTE-THE-DRIVE-FOLDER-ID",
               "type": "string"
             },
             {
-              "id": "7a33abf8-adba-5216-a265-c7a7106a603a",
+              "id": "290d117e-2f17-59c6-a4f6-04740e1101c9",
               "name": "max_recipes",
               "value": 5,
               "type": "number"
             },
             {
-              "id": "a9fd0637-6244-596c-8fd0-0c01da072488",
+              "id": "0f18f75a-0a83-5b8e-b600-a6aa3b8e49a9",
               "name": "pause_seconds",
               "value": 3,
               "type": "number"
@@ -51,7 +51,7 @@
         },
         "options": {}
       },
-      "id": "17e9b034-141a-53b3-9328-58e35f63fd61",
+      "id": "1c3a4117-efea-5254-8f0e-d3a1febd1400",
       "name": "Settings",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -97,7 +97,7 @@
         },
         "options": {}
       },
-      "id": "eab1235e-9a9b-59d5-b662-9564ad0fda5b",
+      "id": "e86523dc-ba25-5b8b-84cd-35500f8c0843",
       "name": "List folder",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -114,9 +114,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const IMG = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];\nconst FOLDER = 'application/vnd.google-apps.folder';\nconst files = $json.files || [];\nconst out = [];\nfor (const f of files) {\n  if (f.mimeType === FOLDER) out.push({ json: { ref: f.id, name: f.name, kind: 'folder', files: [] } });\n  else if (IMG.includes(f.mimeType)) out.push({ json: { ref: f.id, name: f.name, kind: 'file', files: [f] } });\n}\nreturn out;"
+        "jsCode": "const IMG = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];\nconst FOLDER = 'application/vnd.google-apps.folder';\nconst files = $json.files || [];\nconst out = [];\nfor (const f of files) {\n  if (f.mimeType === FOLDER) out.push({ json: { ref: f.id, name: f.name, kind: 'folder', files: [] } });\n  else if (IMG.includes(f.mimeType)) out.push({ json: { ref: f.id, name: f.name, kind: 'file', files: [f], notes: [] } });\n}\nreturn out;"
       },
-      "id": "290d117e-2f17-59c6-a4f6-04740e1101c9",
+      "id": "ac20e595-65e2-5dfd-b741-96003ab00ae2",
       "name": "One recipe per file or subfolder",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -136,7 +136,7 @@
           },
           "conditions": [
             {
-              "id": "0f18f75a-0a83-5b8e-b600-a6aa3b8e49a9",
+              "id": "e07f3607-dece-5172-bc24-2c7ab7f3f794",
               "leftValue": "={{ $json.kind === 'folder' }}",
               "rightValue": "",
               "operator": {
@@ -151,7 +151,7 @@
         "looseTypeValidation": true,
         "options": {}
       },
-      "id": "1c3a4117-efea-5254-8f0e-d3a1febd1400",
+      "id": "9c5df487-3eeb-5aba-9d5a-443ba694f9b1",
       "name": "Is a subfolder?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -197,7 +197,7 @@
         },
         "options": {}
       },
-      "id": "e86523dc-ba25-5b8b-84cd-35500f8c0843",
+      "id": "e8120d1a-9670-5523-a625-9ac4e6cacbde",
       "name": "List subfolder",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -214,9 +214,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const IMG = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];\nconst groups = $('Is a subfolder?').all(0);\nreturn $input.all().map((it, i) => {\n  const g = groups[i].json;\n  const files = (it.json.files || []).filter(f => IMG.includes(f.mimeType))\n    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));\n  return { json: { ...g, files } };\n}).filter(x => x.json.files.length > 0);"
+        "jsCode": "const IMG = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];\nconst NOTE = ['text/plain', 'application/vnd.google-apps.document'];\nconst groups = $('Is a subfolder?').all(0);\nconst byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });\nreturn $input.all().map((it, i) => {\n  const g = groups[i].json;\n  const all = it.json.files || [];\n  const files = all.filter(f => IMG.includes(f.mimeType)).sort(byName);\n  const notes = all.filter(f => NOTE.includes(f.mimeType)).sort(byName);\n  return { json: { ...g, files, notes } };\n}).filter(x => x.json.files.length > 0);"
       },
-      "id": "ac20e595-65e2-5dfd-b741-96003ab00ae2",
+      "id": "af2963bc-cb64-581b-9534-b5467d79be80",
       "name": "Subfolder screenshots",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -227,7 +227,7 @@
     },
     {
       "parameters": {},
-      "id": "e07f3607-dece-5172-bc24-2c7ab7f3f794",
+      "id": "44666871-ee31-54fc-b1df-2e83a6ba8a50",
       "name": "All recipes",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -240,7 +240,7 @@
       "parameters": {
         "jsCode": "return [{ json: { refs: $input.all().map(i => i.json.ref) } }];"
       },
-      "id": "9c5df487-3eeb-5aba-9d5a-443ba694f9b1",
+      "id": "5cc1f533-c105-5f82-b7cf-d4961f6a7db9",
       "name": "Collect refs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -261,7 +261,7 @@
         "jsonBody": "={{ JSON.stringify({ p_refs: $json.refs }) }}",
         "options": {}
       },
-      "id": "e8120d1a-9670-5523-a625-9ac4e6cacbde",
+      "id": "4835f16a-a309-5cfc-8f1b-f0e21e3a377c",
       "name": "Already imported?",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -281,7 +281,7 @@
       "parameters": {
         "jsCode": "const known = new Set($input.all().map(i => i.json.source_ref).filter(Boolean));\nconst max = Number($('Settings').first().json.max_recipes) || 5;\nconst todo = $('All recipes').all().map(i => i.json).filter(g => !known.has(g.ref));\nconsole.log(`${todo.length} new recipe(s) found; importing up to ${max} this run.`);\nreturn todo.slice(0, max).map(g => ({ json: g }));"
       },
-      "id": "af2963bc-cb64-581b-9534-b5467d79be80",
+      "id": "9b75c542-f575-5a93-9378-34980e77ce60",
       "name": "Only new ones",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -295,7 +295,7 @@
         "batchSize": 1,
         "options": {}
       },
-      "id": "44666871-ee31-54fc-b1df-2e83a6ba8a50",
+      "id": "1bd42184-0eac-57e6-8fb0-fdd87f2e7b63",
       "name": "One at a time",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
@@ -317,7 +317,8 @@
           "value": {
             "ref": "={{ $json.ref }}",
             "name": "={{ $json.name }}",
-            "files": "={{ $json.files }}"
+            "files": "={{ $json.files }}",
+            "notes": "={{ $json.notes || [] }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -350,6 +351,16 @@
               "canBeUsedToMatch": true,
               "type": "array",
               "removed": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
             }
           ],
           "attemptToConvertTypes": false,
@@ -359,7 +370,7 @@
           "waitForSubWorkflow": true
         }
       },
-      "id": "5cc1f533-c105-5f82-b7cf-d4961f6a7db9",
+      "id": "30014082-dd14-54f1-a15a-6f17ee46305b",
       "name": "Import one recipe",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -374,7 +385,7 @@
         "amount": "={{ $('Settings').first().json.pause_seconds }}",
         "unit": "seconds"
       },
-      "id": "4835f16a-a309-5cfc-8f1b-f0e21e3a377c",
+      "id": "6c56c138-9e6e-5a33-bcce-547fd4d39c2f",
       "name": "Pause",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -388,7 +399,7 @@
       "parameters": {
         "jsCode": "// The loop's \"done\" output carries every recipe's result\nconst results = $input.all().map(i => i.json);\nconst IMG = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];\nconst skipped = ($('List folder').first().json.files || [])\n  .filter(f => f.mimeType !== 'application/vnd.google-apps.folder' && !IMG.includes(f.mimeType))\n  .map(f => f.name);\nconst ok = results.filter(r => r.ok === true);\nconst failed = results.filter(r => r.ok !== true);\nreturn [{ json: {\n  imported: ok.length,\n  failed: failed.length,\n  titles: ok.map(r => r.title),\n  problems: failed.map(r => r.error || 'unknown error'),\n  skipped_files: skipped.length ? skipped.join(', ') + ' (only PNG/JPG screenshots can be read)' : 'none',\n  next: 'Check the Inbox in the app. Run again to import the next batch.',\n} }];"
       },
-      "id": "9b75c542-f575-5a93-9378-34980e77ce60",
+      "id": "e5f830c8-7feb-582e-a13d-0c2a2746bd9b",
       "name": "Summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

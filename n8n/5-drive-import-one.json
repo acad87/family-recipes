@@ -18,6 +18,10 @@
             {
               "name": "files",
               "type": "array"
+            },
+            {
+              "name": "notes",
+              "type": "array"
             }
           ]
         }
@@ -62,14 +66,93 @@
     },
     {
       "parameters": {
-        "jsCode": "const g = $('When called').first().json;\nconst ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };\nreturn (g.files || []).map((f, i) => ({ json: {\n  file_id: f.id, mime: f.mimeType,\n  path: `drive/${g.ref}/${String(i + 1).padStart(2, '0')}-${f.id}.${ext[f.mimeType] || 'jpg'}`,\n} }));"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2df12f04-486c-567c-b0b2-d894d4c2c3c8",
+              "leftValue": "={{ ($('When called').first().json.notes || []).length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
       },
-      "id": "2df12f04-486c-567c-b0b2-d894d4c2c3c8",
+      "id": "b7f22e3b-7e56-54a6-87c0-3b8c71cf40f5",
+      "name": "Has a note?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return ($('When called').first().json.notes || []).slice(0, 3).map(n => ({ json: n }));"
+      },
+      "id": "e64b52e3-b307-5848-a0fb-f9e16d1ded3a",
+      "name": "One item per note",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Settings').first().json.drive_api }}/drive/v3/files/{{ $json.id }}{{ $json.mimeType === 'application/vnd.google-apps.document' ? '/export?mimeType=text/plain' : '?alt=media' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "text"
+            }
+          }
+        }
+      },
+      "id": "ca457d99-4276-504a-a39f-374b8ee830de",
+      "name": "Read note",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        160
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "rcpGoogleDrive001",
+          "name": "Google Drive"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Runs once for the whole recipe, whichever way it was reached\nconst g = $('When called').first().json;\nconst ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };\nreturn (g.files || []).map((f, i) => ({ json: {\n  file_id: f.id, mime: f.mimeType,\n  path: `drive/${g.ref}/${String(i + 1).padStart(2, '0')}-${f.id}.${ext[f.mimeType] || 'jpg'}`,\n} }));"
+      },
+      "id": "750d3a72-d175-5f17-a857-f7842965d97c",
       "name": "One item per screenshot",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        440,
+        1100,
         300
       ]
     },
@@ -100,12 +183,12 @@
           }
         }
       },
-      "id": "b7f22e3b-7e56-54a6-87c0-3b8c71cf40f5",
+      "id": "cbaf3147-b346-5349-9863-703821408aa3",
       "name": "Download from Drive",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        660,
+        1320,
         300
       ],
       "credentials": {
@@ -139,12 +222,12 @@
         "inputDataFieldName": "data",
         "options": {}
       },
-      "id": "e64b52e3-b307-5848-a0fb-f9e16d1ded3a",
+      "id": "8640f688-d28c-5277-b71c-2772b15525dd",
       "name": "Upload to Supabase",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
+        1540,
         300
       ],
       "credentials": {
@@ -156,14 +239,14 @@
     },
     {
       "parameters": {
-        "jsCode": "const g = $('When called').first().json;\nconst paths = $('One item per screenshot').all().map(i => i.json.path);\nif ($input.all().length !== paths.length) throw new Error('Not every screenshot uploaded');\nreturn [{ json: { source: 'drive', status: 'processing', images: paths, source_ref: g.ref, texts: [] } }];"
+        "jsCode": "const g = $('When called').first().json;\nconst paths = $('One item per screenshot').all().map(i => i.json.path);\nif ($input.all().length !== paths.length) throw new Error('Not every screenshot uploaded');\nlet texts = [];\ntry {\n  texts = $('Read note').all()\n    .map(i => String(i.json.text || '').trim())\n    .filter(t => t && !/^\\{\"error\"/.test(t))\n    .map(t => t.slice(0, 4000));\n} catch (e) { /* no note in this recipe */ }\nreturn [{ json: { source: 'drive', status: 'processing', images: paths, source_ref: g.ref, texts } }];"
       },
-      "id": "ca457d99-4276-504a-a39f-374b8ee830de",
+      "id": "e7dccc75-a880-59b7-ac42-59e40d29320a",
       "name": "Collect paths",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
+        1760,
         300
       ]
     },
@@ -198,12 +281,12 @@
           }
         }
       },
-      "id": "750d3a72-d175-5f17-a857-f7842965d97c",
+      "id": "814dbc1d-e6bd-5141-9db5-7439f96cadf8",
       "name": "Create import job",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
+        1980,
         300
       ],
       "credentials": {
@@ -246,12 +329,12 @@
           "waitForSubWorkflow": true
         }
       },
-      "id": "cbaf3147-b346-5349-9863-703821408aa3",
+      "id": "7ff913a2-37c6-5de4-a3d2-4ecb097b47ef",
       "name": "Read recipe",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        1540,
+        2200,
         300
       ]
     }
@@ -269,6 +352,46 @@
       ]
     },
     "Settings": {
+      "main": [
+        [
+          {
+            "node": "Has a note?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has a note?": {
+      "main": [
+        [
+          {
+            "node": "One item per note",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "One item per screenshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per note": {
+      "main": [
+        [
+          {
+            "node": "Read note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read note": {
       "main": [
         [
           {

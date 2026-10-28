@@ -33,6 +33,8 @@ Claude picks the screenshot that shows the finished dish and the area to crop. N
 2. n8n workflow **1 Extract recipe** → node **Build Claude request** → replace all the code with the latest `build-claude-request.js`. Check: Cmd+F `PICTURE` finds 1 match. Then **Save → Publish**.
 3. Test: send the bot a recipe including the screenshot that shows the dish, tap Done. In Supabase, `select title, cover_image, cover_crop from recipes order by created_at desc limit 1;` should show a screenshot path and a crop.
 
+**Links to the original post:** put a Google Doc or .txt with the Instagram link in the recipe's subfolder (Drive), or paste the link as a message (Telegram). The first web address found is saved as the recipe's link.
+
 **How to screenshot from now on:** include the screenshot showing the dish photo (or a paused Reel frame) **with** the recipe screenshots, in the same Telegram batch or the same Drive subfolder.
 
 ### 3. Add Laura to the bot (5 min)
